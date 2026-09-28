@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@+id/tab_groups" android:icon="@drawable/ic_groups" android:title="@string/tab_groups" />
+    <item android:id="@+id/tab_debts" android:icon="@drawable/ic_wallet" android:title="@string/tab_debts" />
+    <item android:id="@+id/tab_me" android:icon="@drawable/ic_person" android:title="@string/tab_me" />
+</menu>

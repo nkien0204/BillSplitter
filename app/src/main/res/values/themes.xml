@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Base.Theme.ChiaBill" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/brand</item>
+        <item name="colorOnPrimary">@color/surface</item>
+        <item name="colorPrimaryContainer">@color/ok_bg</item>
+        <item name="colorOnPrimaryContainer">@color/ok_fg</item>
+        <item name="colorSecondary">@color/ink</item>
+        <item name="colorOnSecondary">@color/paper</item>
+        <item name="colorSecondaryContainer">@color/ok_bg</item>
+        <item name="colorOnSecondaryContainer">@color/ok_fg</item>
+        <item name="colorSurface">@color/surface</item>
+        <item name="colorOnSurface">@color/ink</item>
+        <item name="colorOnSurfaceVariant">@color/muted</item>
+        <item name="colorOutline">@color/line_strong</item>
+        <item name="colorError">@color/err_fg</item>
+        <item name="android:colorBackground">@color/paper</item>
+        <item name="android:windowBackground">@color/paper</item>
+        <item name="android:statusBarColor">@color/paper</item>
+        <item name="android:navigationBarColor">@color/surface</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="shapeAppearanceCornerMedium">@style/Shape.ChiaBill.Medium</item>
+    </style>
+
+    <style name="Theme.ChiaBill" parent="Base.Theme.ChiaBill" />
+
+    <style name="Shape.ChiaBill.Medium" parent="">
+        <item name="cornerFamily">rounded</item>
+        <item name="cornerSize">14dp</item>
+    </style>
+
+    <style name="Text.Section" parent="">
+        <item name="android:textSize">12sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/muted</item>
+        <item name="android:letterSpacing">0.06</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:layout_marginTop">18dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
+    </style>
+
+    <style name="Card" parent="">
+        <item name="android:background">@drawable/bg_card</item>
+        <item name="android:padding">16dp</item>
+    </style>
+
+    <style name="Button.Primary" parent="Widget.Material3.Button">
+        <item name="android:minHeight">52dp</item>
+        <item name="android:textSize">15sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="cornerRadius">14dp</item>
+    </style>
+
+    <style name="Button.Secondary" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="android:minHeight">48dp</item>
+        <item name="android:textColor">@color/ink</item>
+        <item name="cornerRadius">12dp</item>
+        <item name="strokeColor">@color/line_strong</item>
+    </style>
+</resources>
