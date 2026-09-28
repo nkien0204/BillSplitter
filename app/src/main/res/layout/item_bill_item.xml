@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="10dp"
+    android:background="@drawable/bg_card"
+    android:orientation="vertical"
+    android:padding="12dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <EditText
+            android:id="@+id/itemName"
+            android:layout_width="0dp"
+            android:layout_height="48dp"
+            android:layout_weight="1"
+            android:hint="Tên món"
+            android:importantForAutofill="no"
+            android:inputType="textCapSentences"
+            android:textSize="15sp" />
+
+        <EditText
+            android:id="@+id/itemPrice"
+            android:layout_width="110dp"
+            android:layout_height="48dp"
+            android:layout_marginStart="8dp"
+            android:fontFeatureSettings="tnum"
+            android:gravity="end|center_vertical"
+            android:hint="Giá"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:textSize="15sp" />
+
+        <ImageButton
+            android:id="@+id/itemRemove"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="4dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Xoá món"
+            android:src="@drawable/ic_close" />
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:text="Ai dùng:"
+        android:textColor="@color/muted"
+        android:textSize="12sp" />
+
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/itemWho"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        android:id="@+id/itemWarn"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Món này chưa gán cho ai"
+        android:textColor="@color/err_fg"
+        android:textSize="12sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+</LinearLayout>

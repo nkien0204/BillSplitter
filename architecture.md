@@ -1,6 +1,6 @@
-# System Architecture — Shared Expense / Bill Splitter App
+# System Architecture — ChiaBill (Bill Splitter)
 
-This document describes the system design and technology stack for the Bill Splitter app. It is written to give an AI coding agent (or a new developer) enough context to generate, modify, or review code consistently with the intended architecture.
+This document describes how the app is built, so a new developer or an AI coding agent can change it consistently. Requirements and their status are in `business-requirements.md`.
 
 ---
 
@@ -8,260 +8,164 @@ This document describes the system design and technology stack for the Bill Spli
 
 | Layer | Technology |
 |---|---|
-| Mobile frontend | React Native (JavaScript/TypeScript) |
-| Backend | Node.js + Express |
-| Database | SQLite (server-side, accessed via an ORM — Sequelize or Prisma) |
-| Local/offline storage | SQLite on-device (via `react-native-sqlite-storage` or `WatermelonDB`) |
-| Authentication | JWT (JSON Web Tokens) |
-| API style | REST, JSON payloads over HTTPS |
+| Language | Java 17 (course requirement: Java native) |
+| Platform | Android, minSdk 26 (8.0), targetSdk/compileSdk 35 |
+| Build | Gradle 8.9 wrapper, Android Gradle Plugin 8.7.3 |
+| UI | Activities + Fragments, XML layouts, ViewBinding, Material Components 1.12 |
+| State | Room LiveData → one immutable `AppSnapshot`; ViewModel keeps the bill draft across rotation |
+| Local storage | Room 2.6.1 (SQLite), annotation processor |
+| QR | ZXing core 3.5.3 (encode/decode) + zxing-android-embedded 4.3.0 (camera scan) |
+| Tests | JUnit 5 on `:domain`; AndroidX instrumented tests on Room |
+| Backend | None in v0.3.0. Phase 2 plan in §8 |
 
 ---
 
 ## 2. High-level architecture
 
 ```
-┌─────────────────────┐        HTTPS / REST (JSON)        ┌─────────────────────┐        SQL (via ORM)        ┌─────────────────┐
-│     Mobile App       │ ───────────────────────────────► │    Backend Server    │ ───────────────────────────► │   Database        │
-│  React Native        │ ◄─────────────────────────────── │   Node.js + Express   │ ◄───────────────────────────  │   SQLite          │
-│  + local SQLite cache│                                   │   (JWT auth)          │                              │                  │
-└─────────────────────┘                                   └─────────────────────┘                              └─────────────────┘
+┌──────────────────────────── Android app (single APK) ───────────────────────────┐
+│                                                                                  │
+│  ui/  Activities, Fragments ──reads──►  AppSnapshot (immutable, LiveData)        │
+│        │                                     ▲                                   │
+│        │ calls                                │ rebuilt on every table change     │
+│        ▼                                     │                                   │
+│  data/repo  LedgerRepository (interface) ◄── LocalLedgerRepository ── Room DB     │
+│        │                                                                         │
+│        ▼ uses                                                                    │
+│  :domain  (pure Java, no Android imports)                                        │
+│     split/ SplitEngine, Allocator   ledger/ Ledger, DebtSimplifier,              │
+│     qr/ VietQrCodec, Crc16, Tlv      PaymentStateMachine   user/ PhoneNumber,    │
+│                                                             InviteCode           │
+└──────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-- The mobile app is the only client. It never talks to the database directly — all data access goes through the backend REST API.
-- The mobile app keeps a local SQLite cache so core screens (expense list, balances) work offline. Writes made offline are queued and synced when connectivity returns.
-- The backend is stateless (aside from the database); JWTs carry the authenticated user's identity on every request.
+- **All business rules live in `:domain`** and in the repository. Screens never compute money themselves; they call `SplitEngine` / `Ledger` through the snapshot.
+- **Screens only depend on `LedgerRepository`.** Swapping `LocalLedgerRepository` for a remote one (Phase 2) does not touch the UI.
+- **Offline multi-account demo:** every demo account lives in the same Room database. Switching account in the app shows that user's view, so "Minh adds a bill → Đạt sees the debt" works on one phone. A notification addressed to another account switches to that account when tapped.
 
 ---
 
-## 3. Mobile app (React Native)
-
-### 3.1 Responsibilities
-- Render UI screens
-- Cache data locally in SQLite for offline access
-- Queue writes made while offline, sync them when back online
-- Call the backend REST API for all reads/writes when online
-
-### 3.2 Suggested folder structure
+## 3. Modules and packages
 
 ```
-/src
-  /screens
-    LoginScreen.tsx
-    RegisterScreen.tsx
-    GroupListScreen.tsx
-    GroupDetailScreen.tsx
-    AddExpenseScreen.tsx
-    BalanceSummaryScreen.tsx
-    SettleUpScreen.tsx
-    ProfileScreen.tsx
-  /components
-    ExpenseListItem.tsx
-    BalanceRow.tsx
-    SplitSelector.tsx
-  /navigation
-    AppNavigator.tsx
-  /api
-    client.ts          // axios/fetch wrapper, attaches JWT header
-    authApi.ts
-    groupApi.ts
-    expenseApi.ts
-  /db
-    localDb.ts          // SQLite setup (on-device)
-    syncManager.ts       // handles offline queue + sync on reconnect
-  /store
-    authStore.ts
-    groupStore.ts        // state management (e.g. Zustand, Redux, or Context)
-  /types
-    models.ts             // shared TypeScript interfaces (User, Group, Expense, etc.)
+settings.gradle        :domain, :app
+domain/src/main/java/vn/nhom03/chiabill/domain/
+  model/    Money, Bill, BillSpec, BillItem, Category, SplitMode, SplitResult, ShareLine, Debt, DebtStatus, Transfer
+  split/    Allocator (largest remainder), SplitEngine
+  ledger/   Ledger, DebtSimplifier, PaymentStateMachine
+  qr/       VietQrCodec, Tlv, Crc16, PaymentTarget, BankDirectory, TransferContent, QrError, QrParseResult
+  user/     PhoneNumber, InviteCode
+domain/src/test/java/…  AllocatorTest, SplitEngineTest, LedgerTest, VietQrCodecTest, PhoneNumberTest, InviteCodeTest
+
+app/src/main/java/vn/nhom03/chiabill/
+  ChiaBillApp            wires DB, repository, session, notifications
+  data/db/               Room entities + AppDao + AppDatabase
+  data/repo/             LedgerRepository, LocalLedgerRepository, AppSnapshot, Mappers, BillInput, DemoSeeder
+  ui/                    LoginActivity, MainActivity (tabs), CreateGroupActivity, GroupDetailActivity,
+                         BillEditActivity, BillDetailActivity, DebtDetailActivity, SettleActivity, QrSetupActivity
+  ui/tabs/               GroupsFragment, DebtsFragment, ProfileFragment
+  ui/bill/               BillDraft, BillEditViewModel
+  util/                  SessionManager, NotificationHelper, QrImages, QrExport, Nav, Ui
+app/src/androidTest/…    DemoSeederTest (Room in-memory)
 ```
 
-### 3.3 Core screens → functional requirement mapping
+### 3.1 Screens → functional requirements
 
-| Screen | Related FRs |
+| Screen | FRs |
 |---|---|
-| LoginScreen / RegisterScreen | FR1 |
-| GroupListScreen / GroupDetailScreen | FR2, FR3, FR4, FR14 |
-| AddExpenseScreen | FR5, FR6, FR7 |
-| BalanceSummaryScreen | FR9, FR10 |
-| SettleUpScreen | FR11, FR12 |
-| ProfileScreen | FR13 |
-
-### 3.4 Offline behavior (FR15)
-- All reads render from local SQLite first (cache-first).
-- Writes (new expense, settlement) are written to local SQLite immediately and marked `pending_sync = true`.
-- A `syncManager` listens for connectivity changes and pushes pending records to the backend in order, then marks them synced.
-- Conflict handling: last-write-wins is acceptable for this project's scope; no merge logic required.
+| LoginActivity (pick / create account) | FR1 |
+| GroupsFragment (list, create, join by code) | FR2, FR3 |
+| GroupDetailActivity (members, invite code, history + filters, leave) | FR4, FR8, FR14 |
+| BillEditActivity (4 split modes, category, date, live preview) | FR5, FR6, FR7 |
+| BillDetailActivity | FR7, FR9 |
+| DebtDetailActivity (VietQR, mark paid / confirm / dispute, share QR) | FR11, FR16, FR19 |
+| SettleActivity (net balances, fewest transfers) | FR10, FR11 |
+| ProfileFragment (rename, receiving QR, inbox) | FR13, FR17, FR18 |
 
 ---
 
-## 4. Backend (Node.js + Express)
+## 4. Data model (Room, database version 3)
 
-### 4.1 Responsibilities
-- Expose REST API endpoints
-- Authenticate requests via JWT
-- Contain all business logic (especially balance/split calculations)
-- Read/write the SQLite database via an ORM
+Upgrades use `fallbackToDestructiveMigration()`: installing a new schema wipes local data and the demo data is re-seeded. Acceptable for a demo; Phase 2 must add real migrations.
 
-### 4.2 Suggested folder structure
+| Table | Key columns | Notes |
+|---|---|---|
+| `users` | `id` PK, `name`, `phone` (unique), `guest`, `bankBin`, `accountNo`, `accountName`, `qrUpdatedAt`, `colorIndex` | Guest = person without the app (no phone, gets QR by share) |
+| `bill_groups` | `id` PK, `name`, `createdBy`, `inviteCode` (unique), `createdAt` | `createdBy` = manager; handed to the next member if they leave |
+| `members` | (`groupId`, `userId`) PK, `position`, `active` | Leaving/removal sets `active = false`; the row stays so old bills split exactly as before |
+| `bills` | `id` PK, `groupId`, `title`, `payerId`, `mode`, `subtotal`, `participantsCsv`, `sharesCsv`, `vatPercent`, `servicePercent`, `rounding`, `category`, `createdBy`, `createdAt` (= expense date), `updatedAt` | `mode` ∈ EQUAL, ITEMIZED, CUSTOM, PERCENT |
+| `bill_items` | `billId`, `position`, `name`, `price`, `consumersCsv` | ITEMIZED only |
+| `debt_status` | `debtKey` = `billId:debtorId` PK, `billId`, `status`, `updatedAt` | Missing row = PENDING. Deterministic key → writes are idempotent |
+| `inbox` | `id`, `recipientId`, `message`, `billId`, `debtKey`, `createdAt` | In-app notifications |
 
-```
-/src
-  /routes
-    auth.routes.js
-    group.routes.js
-    expense.routes.js
-    settlement.routes.js
-  /controllers
-    auth.controller.js
-    group.controller.js
-    expense.controller.js
-    settlement.controller.js
-  /services
-    auth.service.js
-    balance.service.js     // core split/balance calculation logic
-    expense.service.js
-  /models                  // ORM models (Sequelize/Prisma)
-    user.model.js
-    group.model.js
-    groupMember.model.js
-    expense.model.js
-    expenseShare.model.js
-    settlement.model.js
-  /middleware
-    authMiddleware.js       // verifies JWT
-    errorHandler.js
-  /config
-    db.js
-    env.js
-  app.js
-  server.js
-```
+**Per-person shares are never stored.** They are recomputed by `SplitEngine` from the bill, which is deterministic. Only payment status is stored.
 
-### 4.3 Architecture pattern
-Layered architecture, request flows as:
-
-```
-Route → Controller → Service → Model (ORM) → Database
-```
-
-- **Routes**: define endpoint + HTTP method, attach middleware
-- **Controllers**: parse request, call service, format response
-- **Services**: business logic (e.g. `balance.service.js` computes who-owes-whom)
-- **Models**: ORM schema definitions and queries only — no business logic here
-
-### 4.4 Authentication flow
-1. User logs in with email/password → backend verifies password hash → issues a JWT.
-2. Mobile app stores the JWT securely (e.g. Keychain/Keystore via a secure storage library) and attaches it as `Authorization: Bearer <token>` on every subsequent request.
-3. `authMiddleware` verifies the JWT on protected routes and attaches `req.user`.
+`sharesCsv` format: `userId:value,…` — VND for CUSTOM, basis points (1 % = 100) for PERCENT.
 
 ---
 
-## 5. Database schema (SQLite)
+## 5. Money and splitting (`:domain`)
 
-### 5.1 Tables
+- Money is `long` VND everywhere. No floating point, no DECIMAL.
+- `Allocator.allocate(total, weights)` — largest-remainder method; the parts always sum to `total`; ties go to the lower index (deterministic).
+- `SplitEngine.split(spec, memberOrder)`:
+  1. **Base share** by mode: EQUAL (subtotal split over participants), ITEMIZED (each item split over its consumers), CUSTOM (typed amounts; subtotal = their sum), PERCENT (subtotal allocated by basis-point weights).
+  2. **VAT and service fee** computed on the subtotal (round half up) and allocated in proportion to base shares.
+  3. **Rounding:** debtors rounded to 1 đ or 1 000 đ; the payer absorbs the difference. If that would make the payer negative, debtors are rounded down instead.
+  - Invariants (property-tested on 10 000 random bills): sum of shares = total; no negative share; same input → same output.
+- `SplitEngine.check(spec, memberOrder)` returns a user-facing error or `null` (e.g. percentages not totalling 100 %). Both the form and the repository call it.
+- `memberOrder` = **all** members who were ever in the group (active or not), by position. This is what keeps old bills stable when someone leaves.
 
-**users**
-| Column | Type | Notes |
-|---|---|---|
-| id | INTEGER PK | |
-| name | TEXT | |
-| email | TEXT | unique |
-| password_hash | TEXT | bcrypt hash |
-| avatar_url | TEXT | nullable |
-| created_at | DATETIME | |
+## 6. Ledger and settlement
 
-**groups**
-| Column | Type | Notes |
-|---|---|---|
-| id | INTEGER PK | |
-| name | TEXT | e.g. "Apartment 4B" |
-| invite_code | TEXT | unique |
-| created_by | INTEGER | FK → users.id |
-| created_at | DATETIME | |
+- `Ledger` builds one `Debt` per (bill, debtor ≠ payer, amount > 0) and computes `owedTo`, `owedBy`, `netBalances`.
+- Balance = sum of open debts (not CONFIRMED) — equivalent to the "paid − owed + settlements" formula in the first draft, but settlements are per debt so there is no separate settlements table to drift.
+- `DebtSimplifier` greedily matches largest creditor with largest debtor: at most n − 1 transfers.
+- `PaymentStateMachine`: `PENDING → MARKED_PAID` (debtor) `→ CONFIRMED | DISPUTED` (payer); `DISPUTED → MARKED_PAID` (debtor) or `→ CONFIRMED` (payer); the payer can also confirm straight from `PENDING` (cash). Every transition is checked in the repository against the actor's role, not trusted from the UI.
+- Editing a bill resets non-confirmed debts whose amount or payer changed back to PENDING and notifies the debtor.
 
-**group_members**
-| Column | Type | Notes |
-|---|---|---|
-| id | INTEGER PK | |
-| group_id | INTEGER | FK → groups.id |
-| user_id | INTEGER | FK → users.id |
-| joined_at | DATETIME | |
+## 7. VietQR
 
-**expenses**
-| Column | Type | Notes |
-|---|---|---|
-| id | INTEGER PK | |
-| group_id | INTEGER | FK → groups.id |
-| description | TEXT | |
-| amount | DECIMAL | total expense amount |
-| category | TEXT | nullable |
-| paid_by | INTEGER | FK → users.id |
-| split_type | TEXT | 'equal' \| 'custom' \| 'percentage' |
-| date | DATETIME | |
-| created_at | DATETIME | |
-
-**expense_shares**
-| Column | Type | Notes |
-|---|---|---|
-| id | INTEGER PK | |
-| expense_id | INTEGER | FK → expenses.id |
-| user_id | INTEGER | FK → users.id |
-| amount_owed | DECIMAL | this user's share of the expense |
-
-**settlements**
-| Column | Type | Notes |
-|---|---|---|
-| id | INTEGER PK | |
-| group_id | INTEGER | FK → groups.id |
-| paid_by | INTEGER | FK → users.id (debtor) |
-| paid_to | INTEGER | FK → users.id (creditor) |
-| amount | DECIMAL | |
-| method | TEXT | e.g. 'cash', 'bank transfer' — free text, nullable |
-| settled_at | DATETIME | |
-
-### 5.2 Balance calculation logic
-A user's net balance in a group = (sum of `expense_shares.amount_owed` where they are the payer, across all group expenses) − (sum of `expense_shares.amount_owed` where they are a participant) + (net of `settlements` involving them). This calculation lives in `balance.service.js` and should be covered by unit tests, since correctness here is a core evaluation criterion (see NFR12).
+- Encoded on device as EMVCo TLV: `00` format, `01` = 12 (dynamic, with amount), `38` NAPAS (`A000000727`, bank BIN, account, `QRIBFTTA`), `53` = 704, `54` amount, `58` = VN, `62.08` transfer note (`CB <bill> <debtor>`, ASCII), `63` CRC-16/CCITT-FALSE.
+- Parsing a user's own QR rejects: not EMV, truncated, bad CRC, not NAPAS VietQR, unsupported service.
+- No bank account data leaves the device; there is no network call.
 
 ---
 
-## 6. REST API endpoints
+## 8. Phase 2: backend (from the first draft, kept as the plan)
 
-| Method | Endpoint | Description | Related FR |
-|---|---|---|---|
-| POST | /api/auth/register | Register a new user | FR1 |
-| POST | /api/auth/login | Log in, returns JWT | FR1 |
-| GET | /api/users/me | Get current user profile | FR13 |
-| PUT | /api/users/me | Update current user profile | FR13 |
-| POST | /api/groups | Create a group | FR2 |
-| POST | /api/groups/join | Join a group via invite code | FR3 |
-| GET | /api/groups | List groups for current user | FR2 |
-| GET | /api/groups/:id | Get group details + members | FR4 |
-| DELETE | /api/groups/:id/members/:userId | Remove a member | FR4 |
-| POST | /api/groups/:id/leave | Leave a group | FR14 |
-| POST | /api/groups/:id/expenses | Add an expense | FR5, FR6 |
-| PUT | /api/expenses/:id | Edit an expense | FR7 |
-| DELETE | /api/expenses/:id | Delete an expense | FR7 |
-| GET | /api/groups/:id/expenses | List/filter expenses in a group | FR8 |
-| GET | /api/groups/:id/balances | Get computed balances for the group | FR9, FR10 |
-| POST | /api/groups/:id/settlements | Record a settle-up payment | FR11, FR12 |
+Add a server only if multi-device sync is required. Plan:
 
-All endpoints except `/api/auth/register` and `/api/auth/login` require a valid JWT in the `Authorization` header.
+- **Server:** Node.js + Express + SQLite via ORM, JWT auth (bcrypt passwords), layered `routes → controllers → services → models`, error shape `{ "error": { "code", "message" } }`. `balance.service.js` must port the same rules as `SplitEngine` (integer VND, largest remainder) and reuse its test vectors.
+- **Android:** `RemoteLedgerRepository implements LedgerRepository` using Retrofit + OkHttp over HTTPS; Room stays as the offline cache with a `pendingSync` flag, last-write-wins. `ChiaBillApp` switches implementation; screens unchanged.
+- **Cheaper alternative:** Firebase Auth (phone OTP) + Firestore with Security Rules, as `FirebaseLedgerRepository`.
 
----
-
-## 7. Conventions
-
-- **Naming**: camelCase for JS variables/functions, snake_case for database columns.
-- **Money handling**: store amounts as DECIMAL in the database and as numbers rounded to 2 decimal places in transit; never rely on raw floating-point equality when checking balances.
-- **Error responses**: consistent JSON shape `{ "error": { "code": string, "message": string } }`.
-- **Dates**: store and transmit in ISO 8601 (UTC); format for display on the client.
-- **IDs**: integers, auto-incrementing, generated by the database.
+| Method | Endpoint | FR |
+|---|---|---|
+| POST | /api/auth/register, /api/auth/login | FR1 |
+| GET / PUT | /api/users/me | FR13 |
+| GET | /api/users/by-phone/:phone (exact match only) | FR2 |
+| POST / GET | /api/groups | FR2 |
+| POST | /api/groups/join (invite code) | FR3 |
+| GET | /api/groups/:id | FR4 |
+| DELETE | /api/groups/:id/members/:userId | FR4 |
+| POST | /api/groups/:id/leave | FR14 |
+| POST / GET | /api/groups/:id/bills (filters: category, member, from, to) | FR5, FR6, FR8 |
+| PUT / DELETE | /api/bills/:id | FR7 |
+| GET | /api/groups/:id/balances | FR9, FR10 |
+| POST | /api/debts/:billId/:debtorId/actions (MARK_PAID, CONFIRM, DISPUTE) | FR11, FR12 |
 
 ---
 
-## 8. Out of scope (for this project)
+## 9. Conventions
 
-- Real-time push notifications
-- Multi-currency support
-- Payment gateway integration (settling is recorded manually, not processed)
-- Horizontal scaling / production-grade deployment concerns
+- Java: camelCase; one public class per file; Vietnamese user-facing strings and comments are fine.
+- Money: `long` VND only. Never `double`.
+- Dates: epoch milliseconds (`long`); formatted on display.
+- IDs: String. Demo data uses readable ids (`dat`, `g1`, `b-lau`); new rows use UUIDs.
+- Room writes run on the repository's single background executor; callbacks are posted to the main thread.
+- Any change to split or balance rules needs a domain test.
+
+## 10. Out of scope
+
+Real bank payment processing (settling is confirmed by people, not by the bank), multi-currency, iOS, production deployment.

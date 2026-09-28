@@ -1,90 +1,65 @@
-# AI Agent Context & Development Guide — Bill Splitter App
+# AI Agent Context & Development Guide — ChiaBill
 
-Welcome, AI Agent. This document serves as your primary entry point to understand the project, its goals, and the expected implementation path. It synthesizes the business requirements and technical architecture into an actionable framework.
+Entry point for AI agents and new developers. Read this, then the two reference documents before changing anything significant.
 
-## 📌 Project Overview
-The **Bill Splitter App** is a mobile application designed for roommates and shared households to log expenses, automatically calculate debts (who owes whom), and record settlements.
+## Project overview
 
-**Core Value Proposition:** Eliminate the manual effort of calculating shared expenses and ensure data consistency in debt tracking.
+**ChiaBill** is an Android app (Java native) for splitting group bills. One person pays; the app splits the bill, tracks debts, and gives each debtor a VietQR of the payer with the amount filled in. Both sides confirm each payment.
 
-## 🗺️ Key Reference Documents
-Before making significant architectural decisions, always refer to:
-- `architecture.md`: Detailed tech stack, folder structures, database schema, and API definitions.
-- `business-requirements.md`: Functional (FR) and Non-Functional Requirements (NFR).
+Core value: nobody does the maths by hand, nobody types an account number, and balances never drift by a single đồng.
 
----
+## Reference documents
 
-## 🛠️ Tech Stack Summary
-- **Frontend:** React Native (TypeScript)
-- **Backend:** Node.js + Express
-- **Database:** SQLite (Server-side via ORM; Client-side via `react-native-sqlite-storage` or `WatermelonDB` for offline cache)
-- **Auth:** JWT (JSON Web Tokens)
-- **API:** REST / JSON
+- `business-requirements.md` — FR/NFR with implementation status per requirement.
+- `architecture.md` — stack, modules, database, split rules, VietQR, Phase 2 backend plan.
+- `README.md` (Vietnamese) — build, demo script, demo accounts.
+- `docs/project-brief.md` (Vietnamese) — full design: MVP scope, threat model, team split.
 
----
+## Stack summary
 
-## 🚀 Implementation Roadmap
-The project should be built in the following phases to ensure a stable foundation:
+- Java 17, Android minSdk 26 / compileSdk 35, AGP 8.7.3, Gradle 8.9 wrapper
+- Room 2.6.1, Material 1.12, ViewBinding, ZXing
+- `:domain` pure Java module (JUnit 5), `:app` Android module
+- No backend in the current release; see `architecture.md` §8
 
-### Phase 1: Backend Foundation
-- [ ] Setup Node.js/Express environment.
-- [ ] Implement SQLite schema via ORM (Users, Groups, Expenses, etc.).
-- [ ] Implement Authentication (Register/Login with bcrypt and JWT).
-- [ ] Create basic CRUD endpoints for Groups and Users.
+## Roadmap
 
-### Phase 2: Core Business Logic (The "Heart" of the App)
-- [ ] Implement `balance.service.js` to handle complex split calculations (Equal, Custom, Percentage).
-- [ ] Implement the balance calculation algorithm: `Net Balance = (Paid as Payer) - (Owed as Participant) + (Settlements)`.
-- [ ] **Critical:** Write comprehensive unit tests for `balance.service.js` to ensure zero drift (NFR12).
+### Phase 1 — offline app (done in v0.3.0)
+- [x] Domain: integer-VND split engine (equal, itemised, custom amounts, percentage), VAT/fee, rounding
+- [x] Domain: ledger, debt simplifier, payment state machine
+- [x] Domain: VietQR encode/parse with CRC, phone numbers, invite codes
+- [x] 52 unit/property tests on `:domain`
+- [x] Room schema v3, `LedgerRepository` + local implementation, demo data
+- [x] Accounts by phone number, groups, add member by phone, invite code, remove member, leave group
+- [x] Bills: category, date, 4 split modes, edit/delete with permission checks
+- [x] History filters (category, member, period)
+- [x] Debt screen with VietQR, save/share QR, notifications, settle-up plan
+- [x] Profile: rename, receiving QR (image, camera, paste, manual)
 
-### Phase 3: Backend API Completion
-- [ ] Implement Expense management endpoints (Add, Edit, Delete).
-- [ ] Implement Settlement recording endpoints.
-- [ ] Implement Group member management and invite code logic.
+### Phase 1 — still to do
+- [ ] Run `connectedDebugAndroidTest` on a device and keep the log
+- [ ] Scan a generated QR with a real banking app and record evidence
+- [ ] Usability sessions: time to add an expense (NFR3), SUS score (NFR4)
 
-### Phase 4: Mobile App Skeleton
-- [ ] Setup React Native project structure.
-- [ ] Implement API Client (Axios/Fetch wrapper with JWT injection).
-- [ ] Setup Navigation (AppNavigator) and basic Routing.
-- [ ] Implement Auth screens (Login, Register).
+### Phase 2 — multi-device (optional)
+- [ ] Choose: Node/Express + JWT (per `architecture.md` §8) or Firebase
+- [ ] `RemoteLedgerRepository` (or `FirebaseLedgerRepository`) behind the existing interface
+- [ ] Offline queue with `pendingSync`, last-write-wins
+- [ ] Real Room migrations instead of destructive fallback
 
-### Phase 5: Mobile Feature Implementation
-- [ ] Implement Group management screens.
-- [ ] Implement Expense logging flow (with split method selectors).
-- [ ] Implement Balance Summary and Settle Up screens.
+## Critical rules
 
-### Phase 6: Offline-First Capability (FR15)
-- [ ] Setup local SQLite database on the device.
-- [ ] Implement cache-first read strategy.
-- [ ] Implement `syncManager` to queue writes and sync when online.
+1. **Money is `long` VND.** Never `double`/`float`, never DECIMAL-with-2-places. All allocation goes through `Allocator` (largest remainder) so parts always sum to the total.
+2. **Business logic lives in `:domain` or the repository**, never in an Activity. `:domain` must not import anything from Android.
+3. **Shares are recomputed, not stored.** Only `debt_status` is stored, keyed `billId:debtorId`.
+4. **Split order uses all members ever in the group** (`AppSnapshot.allMembersOf`), UI and permissions use active members (`membersOf`). Mixing these up changes old bills.
+5. **Permission checks happen in `LocalLedgerRepository`**, not only in the UI (edit/delete bill, payment actions, remove member).
+6. **Phone lookup is exact match only.** No listing or fuzzy search of users.
+7. Changing a Room entity → bump `AppDatabase` version.
 
----
+## Definition of done
 
-## ⚠️ Critical Guidelines & Constraints
-
-### 1. Money Handling
-- **Precision:** Never use raw floating-point numbers for money equality checks.
-- **Storage:** Store as `DECIMAL` in DB.
-- **Transit:** Round to 2 decimal places.
-
-### 2. Architecture Pattern
-Strictly follow the layered approach on the backend:
-`Route` $\rightarrow$ `Controller` $\rightarrow$ `Service` $\rightarrow$ `Model` $\rightarrow$ `Database`
-- **Business logic must live in Services**, not Controllers or Models.
-
-### 3. Naming Conventions
-- **JavaScript/TypeScript:** `camelCase` for variables and functions.
-- **Database:** `snake_case` for columns and tables.
-
-### 4. Offline Logic
-- Use a `pending_sync` flag for local records.
-- Last-write-wins is acceptable for conflict resolution.
-
----
-
-## ✅ Definition of Done (for Tasks)
-- [ ] Code follows the layered architecture.
-- [ ] TypeScript types are defined for all new models.
-- [ ] Backend services are covered by unit tests (especially calculation logic).
-- [ ] Error responses follow the standard format: `{ "error": { "code": string, "message": string } }`.
-- [ ] Feature maps back to a specific Functional Requirement (FR) in `business-requirements.md`.
+- [ ] `gradlew :domain:test` passes; new split/balance rules have a test
+- [ ] `gradlew :app:assembleDebug` builds
+- [ ] Feature maps to an FR in `business-requirements.md` and its status column is updated
+- [ ] README demo steps updated if the flow changed
