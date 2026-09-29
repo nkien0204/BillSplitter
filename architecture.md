@@ -6,17 +6,17 @@ This document describes how the app is built, so a new developer or an AI coding
 
 ## 1. Tech stack
 
-| Layer | Technology |
-|---|---|
-| Language | Java 17 (course requirement: Java native) |
-| Platform | Android, minSdk 26 (8.0), targetSdk/compileSdk 35 |
-| Build | Gradle 8.9 wrapper, Android Gradle Plugin 8.7.3 |
-| UI | Activities + Fragments, XML layouts, ViewBinding, Material Components 1.12 |
-| State | Room LiveData → one immutable `AppSnapshot`; ViewModel keeps the bill draft across rotation |
-| Local storage | Room 2.6.1 (SQLite), annotation processor |
-| QR | ZXing core 3.5.3 (encode/decode) + zxing-android-embedded 4.3.0 (camera scan) |
-| Tests | JUnit 5 on `:domain`; AndroidX instrumented tests on Room |
-| Backend | None in v0.3.0. Phase 2 plan in §8 |
+| Layer         | Technology                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| Language      | Java 17 (course requirement: Java native)                                                   |
+| Platform      | Android, minSdk 26 (8.0), targetSdk/compileSdk 35                                           |
+| Build         | Gradle 8.9 wrapper, Android Gradle Plugin 8.7.3                                             |
+| UI            | Activities + Fragments, XML layouts, ViewBinding, Material Components 1.12                  |
+| State         | Room LiveData → one immutable `AppSnapshot`; ViewModel keeps the bill draft across rotation |
+| Local storage | Room 2.6.1 (SQLite), annotation processor                                                   |
+| QR            | ZXing core 3.5.3 (encode/decode) + zxing-android-embedded 4.3.0 (camera scan)               |
+| Tests         | JUnit 5 on `:domain`; AndroidX instrumented tests on Room                                   |
+| Backend       | None in v0.3.0. Phase 2 plan in §8                                                          |
 
 ---
 
@@ -71,32 +71,110 @@ app/src/androidTest/…    DemoSeederTest (Room in-memory)
 
 ### 3.1 Screens → functional requirements
 
-| Screen | FRs |
-|---|---|
-| LoginActivity (pick / create account) | FR1 |
-| GroupsFragment (list, create, join by code) | FR2, FR3 |
-| GroupDetailActivity (members, invite code, history + filters, leave) | FR4, FR8, FR14 |
-| BillEditActivity (4 split modes, category, date, live preview) | FR5, FR6, FR7 |
-| BillDetailActivity | FR7, FR9 |
+| Screen                                                               | FRs              |
+| -------------------------------------------------------------------- | ---------------- |
+| LoginActivity (pick / create account)                                | FR1              |
+| GroupsFragment (list, create, join by code)                          | FR2, FR3         |
+| GroupDetailActivity (members, invite code, history + filters, leave) | FR4, FR8, FR14   |
+| BillEditActivity (4 split modes, category, date, live preview)       | FR5, FR6, FR7    |
+| BillDetailActivity                                                   | FR7, FR9         |
 | DebtDetailActivity (VietQR, mark paid / confirm / dispute, share QR) | FR11, FR16, FR19 |
-| SettleActivity (net balances, fewest transfers) | FR10, FR11 |
-| ProfileFragment (rename, receiving QR, inbox) | FR13, FR17, FR18 |
+| SettleActivity (net balances, fewest transfers)                      | FR10, FR11       |
+| ProfileFragment (rename, receiving QR, inbox)                        | FR13, FR17, FR18 |
 
 ---
 
 ## 4. Data model (Room, database version 3)
 
+```mermaid
+erDiagram
+    users ||--o{ members : "belongs to"
+    bill_groups ||--o{ members : "contains"
+    bill_groups ||--o{ bills : "has"
+    users ||--o{ bills : "pays"
+    bills ||--o{ bill_items : "contains (Itemized mode)"
+    bills ||--o{ debt_status : "generates"
+    users ||--o{ debt_status : "owes"
+    users ||--o{ inbox : "receives"
+
+    users {
+        string id PK
+        string name
+        string phone UK
+        string bankBin
+        string accountNo
+        string accountName
+        int colorIndex
+        boolean guest
+    }
+
+    bill_groups {
+        string id PK
+        string name
+        string inviteCode UK
+        string createdBy FK
+        long createdAt
+    }
+
+    members {
+        string groupId PK, FK
+        string userId PK, FK
+        int position "Order for deterministic splitting"
+        boolean active "False if member left group"
+    }
+
+    bills {
+        string id PK
+        string groupId FK
+        string payerId FK
+        string title
+        long subtotal
+        string mode "EQUAL, ITEMIZED, CUSTOM, PERCENT"
+        string participantsCsv "userId:value,..."
+        string sharesCsv "userId:value,..."
+        int vatPercent
+        int servicePercent
+        long rounding
+        string category
+        long createdAt "Expense date"
+    }
+
+    bill_items {
+        string billId PK, FK
+        int position
+        string name
+        long price
+        string consumersCsv "userId,userId..."
+    }
+
+    debt_status {
+        string debtKey PK "billId:debtorId"
+        string billId FK
+        string status "PENDING, MARKED_PAID, CONFIRMED, DISPUTED"
+        long updatedAt
+    }
+
+    inbox {
+        string id PK
+        string recipientId FK
+        string message
+        string billId FK
+        string debtKey FK
+        long createdAt
+    }
+```
+
 Upgrades use `fallbackToDestructiveMigration()`: installing a new schema wipes local data and the demo data is re-seeded. Acceptable for a demo; Phase 2 must add real migrations.
 
-| Table | Key columns | Notes |
-|---|---|---|
-| `users` | `id` PK, `name`, `phone` (unique), `guest`, `bankBin`, `accountNo`, `accountName`, `qrUpdatedAt`, `colorIndex` | Guest = person without the app (no phone, gets QR by share) |
-| `bill_groups` | `id` PK, `name`, `createdBy`, `inviteCode` (unique), `createdAt` | `createdBy` = manager; handed to the next member if they leave |
-| `members` | (`groupId`, `userId`) PK, `position`, `active` | Leaving/removal sets `active = false`; the row stays so old bills split exactly as before |
-| `bills` | `id` PK, `groupId`, `title`, `payerId`, `mode`, `subtotal`, `participantsCsv`, `sharesCsv`, `vatPercent`, `servicePercent`, `rounding`, `category`, `createdBy`, `createdAt` (= expense date), `updatedAt` | `mode` ∈ EQUAL, ITEMIZED, CUSTOM, PERCENT |
-| `bill_items` | `billId`, `position`, `name`, `price`, `consumersCsv` | ITEMIZED only |
-| `debt_status` | `debtKey` = `billId:debtorId` PK, `billId`, `status`, `updatedAt` | Missing row = PENDING. Deterministic key → writes are idempotent |
-| `inbox` | `id`, `recipientId`, `message`, `billId`, `debtKey`, `createdAt` | In-app notifications |
+| Table         | Key columns                                                                                                                                                                                                | Notes                                                                                     |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `users`       | `id` PK, `name`, `phone` (unique), `guest`, `bankBin`, `accountNo`, `accountName`, `qrUpdatedAt`, `colorIndex`                                                                                             | Guest = person without the app (no phone, gets QR by share)                               |
+| `bill_groups` | `id` PK, `name`, `createdBy`, `inviteCode` (unique), `createdAt`                                                                                                                                           | `createdBy` = manager; handed to the next member if they leave                            |
+| `members`     | (`groupId`, `userId`) PK, `position`, `active`                                                                                                                                                             | Leaving/removal sets `active = false`; the row stays so old bills split exactly as before |
+| `bills`       | `id` PK, `groupId`, `title`, `payerId`, `mode`, `subtotal`, `participantsCsv`, `sharesCsv`, `vatPercent`, `servicePercent`, `rounding`, `category`, `createdBy`, `createdAt` (= expense date), `updatedAt` | `mode` ∈ EQUAL, ITEMIZED, CUSTOM, PERCENT                                                 |
+| `bill_items`  | `billId`, `position`, `name`, `price`, `consumersCsv`                                                                                                                                                      | ITEMIZED only                                                                             |
+| `debt_status` | `debtKey` = `billId:debtorId` PK, `billId`, `status`, `updatedAt`                                                                                                                                          | Missing row = PENDING. Deterministic key → writes are idempotent                          |
+| `inbox`       | `id`, `recipientId`, `message`, `billId`, `debtKey`, `createdAt`                                                                                                                                           | In-app notifications                                                                      |
 
 **Per-person shares are never stored.** They are recomputed by `SplitEngine` from the bill, which is deterministic. Only payment status is stored.
 
@@ -140,20 +218,20 @@ Add a server only if multi-device sync is required. Plan:
 - **Android:** `RemoteLedgerRepository implements LedgerRepository` using Retrofit + OkHttp over HTTPS; Room stays as the offline cache with a `pendingSync` flag, last-write-wins. `ChiaBillApp` switches implementation; screens unchanged.
 - **Cheaper alternative:** Firebase Auth (phone OTP) + Firestore with Security Rules, as `FirebaseLedgerRepository`.
 
-| Method | Endpoint | FR |
-|---|---|---|
-| POST | /api/auth/register, /api/auth/login | FR1 |
-| GET / PUT | /api/users/me | FR13 |
-| GET | /api/users/by-phone/:phone (exact match only) | FR2 |
-| POST / GET | /api/groups | FR2 |
-| POST | /api/groups/join (invite code) | FR3 |
-| GET | /api/groups/:id | FR4 |
-| DELETE | /api/groups/:id/members/:userId | FR4 |
-| POST | /api/groups/:id/leave | FR14 |
-| POST / GET | /api/groups/:id/bills (filters: category, member, from, to) | FR5, FR6, FR8 |
-| PUT / DELETE | /api/bills/:id | FR7 |
-| GET | /api/groups/:id/balances | FR9, FR10 |
-| POST | /api/debts/:billId/:debtorId/actions (MARK_PAID, CONFIRM, DISPUTE) | FR11, FR12 |
+| Method       | Endpoint                                                           | FR            |
+| ------------ | ------------------------------------------------------------------ | ------------- |
+| POST         | /api/auth/register, /api/auth/login                                | FR1           |
+| GET / PUT    | /api/users/me                                                      | FR13          |
+| GET          | /api/users/by-phone/:phone (exact match only)                      | FR2           |
+| POST / GET   | /api/groups                                                        | FR2           |
+| POST         | /api/groups/join (invite code)                                     | FR3           |
+| GET          | /api/groups/:id                                                    | FR4           |
+| DELETE       | /api/groups/:id/members/:userId                                    | FR4           |
+| POST         | /api/groups/:id/leave                                              | FR14          |
+| POST / GET   | /api/groups/:id/bills (filters: category, member, from, to)        | FR5, FR6, FR8 |
+| PUT / DELETE | /api/bills/:id                                                     | FR7           |
+| GET          | /api/groups/:id/balances                                           | FR9, FR10     |
+| POST         | /api/debts/:billId/:debtorId/actions (MARK_PAID, CONFIRM, DISPUTE) | FR11, FR12    |
 
 ---
 

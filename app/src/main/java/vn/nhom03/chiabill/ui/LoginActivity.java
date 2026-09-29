@@ -5,27 +5,18 @@ import android.os.Bundle;
 import android.text.InputType;
 import android.widget.EditText;
 import android.widget.LinearLayout;
-
-import androidx.recyclerview.widget.LinearLayoutManager;
-
+import android.widget.Toast;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
-
-import java.util.ArrayList;
-import java.util.List;
-
 import vn.nhom03.chiabill.R;
-import vn.nhom03.chiabill.data.db.UserEntity;
-import vn.nhom03.chiabill.data.repo.AppSnapshot;
+import vn.nhom03.chiabill.data.network.AuthApi.UserAuthResponse;
+import vn.nhom03.chiabill.data.repo.AuthRepository;
 import vn.nhom03.chiabill.databinding.ActivityLoginBinding;
-import vn.nhom03.chiabill.domain.model.Money;
-import vn.nhom03.chiabill.domain.qr.BankDirectory;
-import vn.nhom03.chiabill.domain.user.PhoneNumber;
 import vn.nhom03.chiabill.util.Ui;
+import vn.nhom03.chiabill.util.i18n.MessageMapper;
 
-/** Chọn tài khoản demo. Bản có backend sẽ thay màn này bằng đăng nhập email/Google. */
 public class LoginActivity extends BaseActivity {
+
     private ActivityLoginBinding b;
-    private final RowAdapter adapter = new RowAdapter();
     private boolean leaving;
 
     @Override
@@ -33,81 +24,188 @@ public class LoginActivity extends BaseActivity {
         super.onCreate(savedInstanceState);
         b = ActivityLoginBinding.inflate(getLayoutInflater());
         setContentView(b.getRoot());
-        b.accounts.setLayoutManager(new LinearLayoutManager(this));
-        b.accounts.setAdapter(adapter);
-        b.create.setOnClickListener(v -> askName());
 
-        repo().ensureSeeded(() -> repo().snapshot().observe(this, this::render));
+        b.btnLogin.setOnClickListener(v -> handleLogin());
+        b.create.setOnClickListener(v -> askRegister());
     }
 
-    private void render(AppSnapshot s) {
-        String current = me();
-        if (leaving) return;
-        if (current != null && s.user(current) != null && !s.user(current).guest) {
-            openMain();
+    private void handleLogin() {
+        String phone = b.editPhone.getText().toString().trim();
+        String password = b.editPassword.getText().toString().trim();
+
+        if (phone.isEmpty()) {
+            b.editPhone.setError("Vui lòng nhập số điện thoại");
             return;
         }
-        List<RowAdapter.Row> rows = new ArrayList<>();
-        for (UserEntity u : s.accounts()) {
-            RowAdapter.Row r = new RowAdapter.Row();
-            r.avatarName = u.name;
-            r.colorIndex = u.colorIndex;
-            r.title = u.name;
-            String phone = u.phone != null ? PhoneNumber.format(u.phone) : "Chưa có số điện thoại";
-            r.subtitle = phone + " · " + (u.hasPaymentProfile() ? "QR " + BankDirectory.nameOf(u.bankBin) : "chưa khai QR");
-            long owe = s.ledger().owedBy(u.id, null);
-            long owed = s.ledger().owedTo(u.id, null);
-            if (owed > owe) {
-                r.amount = "+" + Money.format(owed - owe);
-                r.amountColor = Ui.col(this, R.color.brand);
-            } else if (owe > owed) {
-                r.amount = Money.format(owe - owed);
-                r.amountColor = Ui.col(this, R.color.owe);
-            }
-            r.onClick = () -> {
-                session().signIn(u.id);
-                openMain();
-            };
-            rows.add(r);
+        if (password.isEmpty()) {
+            b.editPassword.setError("Vui lòng nhập mật khẩu");
+            return;
         }
-        adapter.submit(rows);
+
+        ((vn.nhom03.chiabill.ChiaBillApp) getApplication()).showLoading(this);
+        ((vn.nhom03.chiabill.ChiaBillApp) getApplication())
+            .authRepository()
+            .login(
+                phone,
+                password,
+                new AuthRepository.AuthCallback<UserAuthResponse>() {
+                    @Override
+                    public void onSuccess(UserAuthResponse result) {
+                        (
+                            (vn.nhom03.chiabill.ChiaBillApp) getApplication()
+                        ).hideLoading();
+
+                        // Save user to local cache immediately to prevent 'userMissing' redirect
+                        vn.nhom03.chiabill.data.db.UserEntity user =
+                            new vn.nhom03.chiabill.data.db.UserEntity();
+                        user.id = result.user.id;
+                        user.name = result.user.name;
+                        user.phone = result.user.phone;
+                        ((vn.nhom03.chiabill.ChiaBillApp) getApplication())
+                            .repository()
+                            .saveUserNow(user);
+
+                        session().signIn(result.user.id, result.token);
+                        openMain();
+                    }
+
+                    @Override
+                    public void onError(String errorCode) {
+                        (
+                            (vn.nhom03.chiabill.ChiaBillApp) getApplication()
+                        ).hideLoading();
+                        String friendlyMessage = MessageMapper.mapErrorCode(
+                            LoginActivity.this,
+                            errorCode
+                        );
+                        Toast.makeText(
+                            LoginActivity.this,
+                            friendlyMessage,
+                            Toast.LENGTH_SHORT
+                        ).show();
+                    }
+                }
+            );
     }
 
-    private void askName() {
+    private void askRegister() {
         EditText name = new EditText(this);
         name.setHint(R.string.login_name_hint);
-        name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        name.setInputType(
+            InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS
+        );
+
         EditText phone = new EditText(this);
         phone.setHint("Số điện thoại, vd 0905 555 555");
         phone.setInputType(InputType.TYPE_CLASS_PHONE);
+
+        EditText password = new EditText(this);
+        password.setHint("Mật khẩu");
+        password.setInputType(InputType.TYPE_TEXT_VARIATION_PASSWORD);
+
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         int pad = Ui.dp(this, 20);
         box.setPadding(pad, pad / 2, pad, 0);
         box.addView(name);
         box.addView(phone);
-        androidx.appcompat.app.AlertDialog dialog = new MaterialAlertDialogBuilder(this)
+        box.addView(password);
+
+        androidx.appcompat.app.AlertDialog dialog =
+            new MaterialAlertDialogBuilder(this)
                 .setTitle("Tạo tài khoản")
-                .setMessage("Người khác sẽ tìm thấy bạn bằng số điện thoại này để thêm vào nhóm.")
+                .setMessage(
+                    "Người khác sẽ tìm thấy bạn bằng số điện thoại này để thêm vào nhóm."
+                )
                 .setView(box)
                 .setPositiveButton("Tạo", null)
                 .setNegativeButton(R.string.cancel, null)
                 .create();
-        dialog.setOnShowListener(d -> dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener(v ->
-                repo().createAccount(name.getText().toString(), phone.getText().toString(), id -> {
-                    dialog.dismiss();
-                    session().signIn(id);
-                    openMain();
-                }, err -> {
-                    if (err.startsWith("Cần nhập tên")) name.setError(err); else phone.setError(err);
-                })));
+
+        dialog.setOnShowListener(d ->
+            dialog
+                .getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener(v -> {
+                    String n = name.getText().toString().trim();
+                    String p = phone.getText().toString().trim();
+                    String pw = password.getText().toString().trim();
+
+                    if (n.isEmpty() || p.isEmpty() || pw.isEmpty()) {
+                        Toast.makeText(
+                            this,
+                            "Vui lòng nhập đầy đủ thông tin",
+                            Toast.LENGTH_SHORT
+                        ).show();
+                        return;
+                    }
+
+                    (
+                        (vn.nhom03.chiabill.ChiaBillApp) getApplication()
+                    ).showLoading(this);
+                    ((vn.nhom03.chiabill.ChiaBillApp) getApplication())
+                        .authRepository()
+                        .register(
+                            n,
+                            p,
+                            pw,
+                            new AuthRepository.AuthCallback<UserAuthResponse>() {
+                                @Override
+                                public void onSuccess(UserAuthResponse result) {
+                                    (
+                                        (vn.nhom03.chiabill.ChiaBillApp) getApplication()
+                                    ).hideLoading();
+                                    dialog.dismiss();
+
+                                    // Save user to local cache immediately to prevent 'userMissing' redirect
+                                    vn.nhom03.chiabill.data.db.UserEntity user =
+                                        new vn.nhom03.chiabill.data.db.UserEntity();
+                                    user.id = result.user.id;
+                                    user.name = result.user.name;
+                                    user.phone = result.user.phone;
+                                    (
+                                        (vn.nhom03.chiabill.ChiaBillApp) getApplication()
+                                    )
+                                        .repository()
+                                        .saveUserNow(user);
+
+                                    session().signIn(
+                                        result.user.id,
+                                        result.token
+                                    );
+                                    openMain();
+                                }
+
+                                @Override
+                                public void onError(String errorCode) {
+                                    (
+                                        (vn.nhom03.chiabill.ChiaBillApp) getApplication()
+                                    ).hideLoading();
+                                    String friendlyMessage =
+                                        MessageMapper.mapErrorCode(
+                                            LoginActivity.this,
+                                            errorCode
+                                        );
+                                    Toast.makeText(
+                                        LoginActivity.this,
+                                        friendlyMessage,
+                                        Toast.LENGTH_SHORT
+                                    ).show();
+                                }
+                            }
+                        );
+                })
+        );
         dialog.show();
     }
 
     private void openMain() {
         if (leaving) return;
         leaving = true;
-        startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK));
+        startActivity(
+            new Intent(this, MainActivity.class).addFlags(
+                Intent.FLAG_ACTIVITY_CLEAR_TASK | Intent.FLAG_ACTIVITY_NEW_TASK
+            )
+        );
         finish();
     }
 }

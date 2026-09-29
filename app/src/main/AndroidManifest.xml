@@ -4,6 +4,8 @@
 
     <!-- Thông báo hoá đơn mới / nhắc trả / xác nhận (Android 13+ xin lúc chạy) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Kết nối Server (Phase 2) -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Quét QR bằng camera: thư viện quét tự xin khi mở máy quét -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Lưu ảnh QR trên Android 8–9; Android 10+ dùng MediaStore, không cần quyền -->
@@ -21,6 +23,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
         android:theme="@style/Theme.ChiaBill"
+        android:networkSecurityConfig="@xml/network_security_config"
         tools:targetApi="35">
 
         <activity
