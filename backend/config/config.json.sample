@@ -1,0 +1,31 @@
+{
+  "app": {
+    "port": 3000,
+    "jwtSecret": "your-secret-key-here",
+    "dbStorage": "./database.sqlite"
+  },
+  "development": {
+    "username": "sequelize",
+    "password": null,
+    "database": "database.sqlite",
+    "host": "127.0.0.1",
+    "dialect": "sqlite",
+    "storage": "./database.sqlite"
+  },
+  "test": {
+    "username": "sequelize",
+    "password": null,
+    "database": "database_test.sqlite",
+    "host": "127.0.0.1",
+    "dialect": "sqlite",
+    "storage": "./database_test.sqlite"
+  },
+  "production": {
+    "username": "sequelize",
+    "password": null,
+    "database": "database.sqlite",
+    "host": "127.0.0.1",
+    "dialect": "sqlite",
+    "storage": "./database.sqlite"
+  }
+}

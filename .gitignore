@@ -1,3 +1,4 @@
+# Android & General
 .gradle/
 build/
 /local.properties
@@ -11,3 +12,10 @@ keystore.properties
 build-log.txt
 outputs/**/*.apk
 outputs/**/*.zip
+node_modules/
+
+# Backend
+backend/config/config.json
+backend/database.sqlite
+backend/node_modules/
+backend/.env

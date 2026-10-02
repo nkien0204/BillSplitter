@@ -6,6 +6,91 @@ Một người trả hộ cả nhóm, nhập hoá đơn, chọn ai ăn gì. Mỗ
 
 Bản này là **bản demo offline**: mọi tài khoản demo nằm chung một CSDL trên máy, nên các tài khoản thật sự tương tác với nhau (Minh tạo hoá đơn thì Đạt thấy khoản nợ; Đạt bấm "Tôi đã chuyển" thì Minh nhận thông báo). Thiết kế đầy đủ: `docs/project-brief.md`.
 
+## Getting started (app + backend)
+
+The app now talks to a Node.js backend (login, groups, bills, payments). **The backend must be running before you open the app.** The offline demo walkthrough further down describes the older local-only mode.
+
+### Prerequisites
+
+| Tool | Version | Used for |
+|---|---|---|
+| Node.js + npm | 18+ | backend |
+| JDK | 17 | Gradle / Android build |
+| Android SDK | platform 35 (Android Studio installs it) | app build |
+| Android device or emulator | Android 8.0+ (API 26) | running the app |
+
+### 1. Set up and run the backend
+
+```bash
+cd backend
+npm install
+cp config/config.json.sample config/config.json   # then edit it, see below
+npx sequelize-cli db:migrate                      # creates backend/database.sqlite
+npm run dev                                       # or: npm start
+```
+
+- In `config/config.json`, set `app.jwtSecret` to any long random string. `app.port` is the port the server listens on (3000 in the sample). The server binds to `0.0.0.0`, so other devices on your network can reach it.
+- Only `config/config.json` is read. `.env.example` is not used by the code.
+- `config.json` and `database.sqlite` are gitignored, so each developer has their own copy and data.
+- The database starts **empty**: there is no seed data. You create accounts from the app (step 4).
+- Do not use `sequelize.sync()`. The schema changes only through migrations. After pulling new code, run `npx sequelize-cli db:migrate` again.
+- Reset your data by stopping the server, deleting `backend/database.sqlite`, and re-running the migrations.
+
+Check it works: `curl -i http://localhost:3000/api/users/find?phone=0900000000` should answer with HTTP 200 and a body of `null`.
+
+### 2. Point the app at the backend
+
+The app reads its server address from `BACKEND_URL` in the root `gradle.properties`. It must end with `/` and keep the quotes:
+
+```
+BACKEND_URL="http://<address>:<port>/"
+```
+
+| You run the app on | Use `<address>` |
+|---|---|
+| Android emulator | `10.0.2.2` (the emulator's name for your computer) |
+| Real phone | your computer's LAN IP, e.g. `192.168.1.20` (`ipconfig getifaddr en0` on macOS, `ipconfig` on Windows). Phone and computer must be on the same Wi-Fi, and the firewall must allow the port |
+
+`<port>` is `app.port` from `config.json`.
+
+Android blocks plain `http://` unless the host is allowed. Add the same address to `app/src/main/res/xml/network_security_config.xml`:
+
+```xml
+<domain includeSubdomains="true">192.168.1.20</domain>
+```
+
+`10.0.2.2` and `localhost` are already listed. Do not commit your personal IP; keep that change local or revert it before committing.
+
+### 3. Build and install the app
+
+Create `local.properties` in the project root if Android Studio has not already (`sdk.dir=/path/to/Android/sdk`), then:
+
+```bash
+./gradlew :domain:test                # 52 domain tests, no device needed
+./gradlew :app:installDebug           # builds and installs on the connected device/emulator
+```
+
+On Windows use `gradlew.bat`, or double-click `build-apk.bat`. Or open the folder in Android Studio and press **Run** on the `app` configuration. Changing `BACKEND_URL` needs a rebuild.
+
+If installing fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE`, the app was installed from another machine with a different debug key. Uninstall it first: `adb uninstall vn.nhom03.chiabill`.
+
+### 4. First run: create two accounts
+
+1. In the app tap register, enter a name, a phone number such as `0901 111 111`, and a password.
+2. Create a second account the same way, either on another device or after **Tôi → Đổi tài khoản**. Each login gets its own token, so switch accounts by logging in again.
+3. As account A: **Tạo nhóm**, type account B's phone number, tap **Thêm**, then **Lưu**.
+4. Add a bill, then as account B mark it paid, and as account A confirm it.
+
+### Troubleshooting
+
+| Symptom | Likely cause |
+|---|---|
+| Network error, timeout, or "Cleartext HTTP traffic not permitted" | Wrong `BACKEND_URL`, address missing from `network_security_config.xml`, backend not running, different Wi-Fi, or firewall |
+| 404 on every call | `BACKEND_URL` points at the wrong host or port |
+| 401 | Token missing or expired: log out and log in again |
+| Backend crashes at start with `no such table` | Migrations not applied: `npx sequelize-cli db:migrate` |
+| Works on emulator but not on phone | `10.0.2.2` only works on the emulator; use your LAN IP |
+
 ## Build và chạy
 
 Yêu cầu: Android Studio (JDK 17, Android SDK 35), máy hoặc emulator Android 8.0+.
