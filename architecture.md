@@ -16,7 +16,7 @@ This document describes how the app is built, so a new developer or an AI coding
 | Local storage | Room 2.6.1 (SQLite), annotation processor                                                   |
 | QR            | ZXing core 3.5.3 (encode/decode) + zxing-android-embedded 4.3.0 (camera scan)               |
 | Tests         | JUnit 5 on `:domain`; AndroidX instrumented tests on Room                                   |
-| Backend       | None in v0.3.0. Phase 2 plan in §8                                                          |
+| Backend       | Node.js + Express + Sequelize (SQLite), see `backend/` and README "Getting started"; plan in §8                                                          |
 
 ---
 

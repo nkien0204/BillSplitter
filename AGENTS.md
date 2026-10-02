@@ -74,6 +74,8 @@ graph TD
 
 ## ⚙️ Backend Operations
 
+> New to the project? Follow **README.md → "Getting started (app + backend)"** for the full setup, including `BACKEND_URL` and the network security config.
+
 When working on the backend (located in `/backend`), follow these operational rules:
 
 ### 1. Running the Server
