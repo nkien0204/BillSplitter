@@ -93,17 +93,28 @@ public class RemoteLedgerRepository implements LedgerRepository {
         Callback<String> onError
     ) {
         executor.execute(() -> {
+            String phone = vn.nhom03.chiabill.domain.user.PhoneNumber.normalize(
+                rawPhone
+            );
+            if (phone == null) {
+                onMain(
+                    onError,
+                    "Số điện thoại không hợp lệ. Nhập đủ 10 số, vd 0904 444 444."
+                );
+                return;
+            }
             try {
-                Response<UserEntity> response = api
-                    .findUser(rawPhone)
-                    .execute();
+                Response<UserEntity> response = api.findUser(phone).execute();
                 if (response.isSuccessful()) {
-                    onMain(onResult, response.body());
+                    UserEntity u = response.body();
+                    // Cache so group screens can resolve this user's name offline.
+                    if (u != null) localRepo.saveUserNow(u);
+                    onMain(onResult, u);
                 } else {
-                    onMain(onError, "Search failed");
+                    onMain(onError, "Search failed: " + response.code());
                 }
             } catch (Exception e) {
-                onMain(onError, e.getMessage());
+                onMain(onError, String.valueOf(e.getMessage()));
             }
         });
     }
@@ -118,20 +129,24 @@ public class RemoteLedgerRepository implements LedgerRepository {
     ) {
         executor.execute(() -> {
             try {
-                // Not implemented in api interface yet, using a dummy or adding it
-                // Let's assume we add it to the api interface
-                // For now, I'll just call the local repo to avoid blocking
-                localRepo.addMember(
-                    groupId,
-                    userId,
-                    actorId,
-                    done,
-                    onError
-                );
-                // Wait, the LocalLedgerRepository callbacks are already on main?
-                // Let's check LocalLedgerRepository.java
+                ChiaBillApi.AddMemberRequest request =
+                    new ChiaBillApi.AddMemberRequest();
+                request.groupId = groupId;
+                request.userId = userId;
+                Response<Void> response = api.addMember(request).execute();
+                if (response.isSuccessful()) {
+                    localRepo.addMember(
+                        groupId,
+                        userId,
+                        actorId,
+                        done,
+                        onError
+                    );
+                } else {
+                    onMain(onError, "Add member failed: " + response.code());
+                }
             } catch (Exception e) {
-                onMain(onError, e.getMessage());
+                onMain(onError, String.valueOf(e.getMessage()));
             }
         });
     }
@@ -349,12 +364,25 @@ public class RemoteLedgerRepository implements LedgerRepository {
                 ChiaBillApi.GroupRequest request =
                     new ChiaBillApi.GroupRequest();
                 request.name = name;
+                request.memberIds = memberIds;
                 Response<GroupEntity> response = api
                     .createGroup(request)
                     .execute();
                 if (response.isSuccessful() && response.body() != null) {
                     GroupEntity group = response.body();
                     localRepo.saveGroup(group);
+                    // The server adds the creator at position 0.
+                    localRepo.saveMember(
+                        new MemberEntity(group.id, creatorId, 0)
+                    );
+                    int position = 1;
+                    for (String memberId : memberIds) {
+                        if (memberId.equals(creatorId)) continue;
+                        localRepo.saveMember(
+                            new MemberEntity(group.id, memberId, position++)
+                        );
+                    }
+                    // Guests have no server account (phone is required), so they are not synced.
                     onMain(onId, group.id);
                 }
             } catch (Exception e) {
@@ -459,10 +487,10 @@ public class RemoteLedgerRepository implements LedgerRepository {
     ) {
         executor.execute(() -> {
             try {
-                // Parse debtKey (billId:userId)
+                // Parse debtKey (billId:debtorId)
                 String[] parts = debtKey.split(":");
                 String billId = parts[0];
-                String userId = parts[1];
+                String debtorId = parts[1];
 
                 Response<Void> response;
                 switch (action) {
@@ -476,14 +504,14 @@ public class RemoteLedgerRepository implements LedgerRepository {
                         ChiaBillApi.ConfirmPaymentRequest confReq =
                             new ChiaBillApi.ConfirmPaymentRequest();
                         confReq.billId = billId;
-                        confReq.debtorId = userId;
+                        confReq.debtorId = debtorId;
                         response = api.confirmPayment(confReq).execute();
                         break;
                     case DISPUTE:
                         ChiaBillApi.DisputePaymentRequest dispReq =
                             new ChiaBillApi.DisputePaymentRequest();
                         dispReq.billId = billId;
-                        dispReq.debtorId = userId;
+                        dispReq.debtorId = debtorId;
                         response = api.disputePayment(dispReq).execute();
                         break;
                     default:

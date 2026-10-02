@@ -34,6 +34,6 @@ public final class SessionManager {
     }
 
     public void signOut() {
-        prefs.edit().remove(KEY_USER).apply();
+        prefs.edit().remove(KEY_USER).remove(KEY_TOKEN).apply();
     }
 }

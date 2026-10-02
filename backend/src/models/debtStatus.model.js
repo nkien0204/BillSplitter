@@ -21,6 +21,7 @@ const DebtStatus = sequelize.define(
     },
   },
   {
+    tableName: "DebtStatus",
     timestamps: false,
   },
 );

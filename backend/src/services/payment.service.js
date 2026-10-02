@@ -1,5 +1,6 @@
 const DebtStatus = require("../models/debtStatus.model");
 const Bill = require("../models/bill.model");
+const BillItem = require("../models/billItem.model");
 const Member = require("../models/member.model");
 const User = require("../models/user.model");
 
@@ -69,10 +70,12 @@ class PaymentService {
   async getGroupBalances(groupId) {
     const bills = await Bill.findAll({ where: { groupId } });
     const members = await Member.findAll({ where: { groupId } });
-    const debtStatuses = await DebtStatus.findAll({
-      // In a real app, we would filter by groupId by joining with Bills
-    });
+    const billIds = bills.map((b) => b.id);
+    const debtStatuses = billIds.length
+      ? await DebtStatus.findAll({ where: { billId: billIds } })
+      : [];
 
+    // Shape matches the app's BillDetailsResponse: { bill, items }.
     const billsWithItems = await Promise.all(
       bills.map(async (bill) => {
         const items = await BillItem.findAll({
@@ -80,7 +83,7 @@ class PaymentService {
           order: [["position", "ASC"]],
         });
         return {
-          ...bill.toJSON(),
+          bill: bill.toJSON(),
           items: items.map((i) => i.toJSON()),
         };
       }),

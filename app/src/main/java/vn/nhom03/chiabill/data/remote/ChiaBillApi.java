@@ -7,84 +7,87 @@ import vn.nhom03.chiabill.data.db.*;
 
 public interface ChiaBillApi {
     // Auth
-    @POST("auth/register")
+    @POST("api/auth/register")
     Call<UserEntity> register(@Body UserRequest request);
 
-    @POST("auth/login")
+    @POST("api/auth/login")
     Call<AuthResponse> login(@Body AuthRequest request);
 
     // Users
-    @GET("users/find")
+    @GET("api/users/find")
     Call<UserEntity> findUser(@Query("phone") String phone);
 
-    @PUT("users/rename")
+    @PUT("api/users/rename")
     Call<UserEntity> renameUser(@Body RenameRequest request);
 
-    @PUT("users/payment-target")
+    @PUT("api/users/payment-target")
     Call<UserEntity> setPaymentTarget(@Body PaymentTargetRequest request);
 
-    @DELETE("users/payment-target")
+    @DELETE("api/users/payment-target")
     Call<Void> clearPaymentTarget();
 
     // Groups
-    @POST("groups")
+    @POST("api/groups")
     Call<GroupEntity> createGroup(@Body GroupRequest request);
 
-    @POST("groups/join")
+    @POST("api/groups/join")
     Call<GroupEntity> joinGroup(@Body JoinRequest request);
 
-    @GET("groups")
+    @GET("api/groups")
     Call<List<GroupEntity>> listGroups();
 
-    @GET("groups/{groupId}/members")
+    @POST("api/groups/add-member")
+    Call<Void> addMember(@Body AddMemberRequest request);
+
+    @GET("api/groups/{groupId}/members")
     Call<List<MemberResponse>> getMembers(@Path("groupId") String groupId);
 
-    @DELETE("groups/members/{groupId}/{userId}")
+    @DELETE("api/groups/members/{groupId}/{userId}")
     Call<Void> removeMember(
         @Path("groupId") String groupId,
         @Path("userId") String userId
     );
 
-    @DELETE("groups/{groupId}/leave")
+    @DELETE("api/groups/{groupId}/leave")
     Call<Void> leaveGroup(@Path("groupId") String groupId);
 
     // Bills
-    @POST("bills")
+    @POST("api/bills")
     Call<BillEntity> createBill(@Body BillRequest request);
 
-    @PUT("bills/{id}")
+    @PUT("api/bills/{id}")
     Call<BillEntity> updateBill(
         @Path("id") String id,
         @Body BillRequest request
     );
 
-    @DELETE("bills/{id}")
+    @DELETE("api/bills/{id}")
     Call<Void> deleteBill(@Path("id") String id);
 
-    @GET("bills/group/{groupId}")
+    @GET("api/bills/group/{groupId}")
     Call<List<BillEntity>> listBillsByGroup(@Path("groupId") String groupId);
 
-    @GET("bills/{id}")
+    @GET("api/bills/{id}")
     Call<BillDetailsResponse> getBillDetails(@Path("id") String id);
 
     // Payments
-    @POST("payments/mark-paid")
+    @POST("api/payments/mark-paid")
     Call<Void> markPaid(@Body MarkPaidRequest request);
 
-    @POST("payments/confirm")
+    @POST("api/payments/confirm")
     Call<Void> confirmPayment(@Body ConfirmPaymentRequest request);
 
-    @POST("payments/dispute")
+    @POST("api/payments/dispute")
     Call<Void> disputePayment(@Body DisputePaymentRequest request);
 
-    @GET("payments/group/{groupId}/balances")
+    @GET("api/payments/group/{groupId}/balances")
     Call<BalanceDataResponse> getBalances(@Path("groupId") String groupId);
 
     // Inbox
-    @POST("inbox/send")
+    @POST("api/inbox/send")
     Call<Void> sendNotification(@Body NotificationRequest request);
 
-    @GET("inbox")
+    @GET("api/inbox")
     Call<List<InboxEntity>> getNotifications();
 
     // DTOs
@@ -122,6 +125,13 @@ public interface ChiaBillApi {
     class GroupRequest {
 
         public String name;
+        public List<String> memberIds;
+    }
+
+    class AddMemberRequest {
+
+        public String groupId;
+        public String userId;
     }
 
     class JoinRequest {

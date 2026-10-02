@@ -2,7 +2,10 @@ const User = require("../models/user.model");
 
 class UserService {
   async findUserByPhone(phone) {
-    return User.findOne({ where: { phone } });
+    return User.findOne({
+      where: { phone },
+      attributes: { exclude: ["password_hash"] },
+    });
   }
 
   async renameUser(userId, name) {

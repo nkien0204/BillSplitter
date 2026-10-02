@@ -28,6 +28,7 @@ const Inbox = sequelize.define(
     },
   },
   {
+    tableName: "Inbox",
     timestamps: false,
   },
 );

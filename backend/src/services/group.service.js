@@ -1,6 +1,7 @@
 const Group = require("../models/group.model");
 const Member = require("../models/member.model");
 const User = require("../models/user.model");
+const sequelize = require("../config/db");
 const { v4: uuidv4 } = require("uuid");
 
 class GroupService {
@@ -8,23 +9,62 @@ class GroupService {
     const { name } = groupData;
     const inviteCode = this._generateInviteCode();
 
-    const group = await Group.create({
-      id: uuidv4(),
-      name,
-      inviteCode,
-      createdBy: userId,
-      createdAt: Date.now(),
-    });
+    // Unique, non-empty member ids, excluding the creator (always position 0).
+    const rawIds = Array.isArray(groupData.memberIds) ? groupData.memberIds : [];
+    const memberIds = [...new Set(rawIds)].filter(
+      (id) => typeof id === "string" && id && id !== userId,
+    );
 
-    // Add creator as first member
-    await Member.create({
-      groupId: group.id,
-      userId: userId,
-      position: 0,
-      active: true,
-    });
+    // Group and all memberships are written atomically: if any insert fails,
+    // everything rolls back so no orphaned or half-populated group is left.
+    return sequelize.transaction(async (transaction) => {
+      if (memberIds.length > 0) {
+        const found = await User.count({
+          where: { id: memberIds },
+          transaction,
+        });
+        if (found !== memberIds.length) {
+          throw new Error("One or more members do not exist");
+        }
+      }
 
-    return group;
+      const group = await Group.create(
+        {
+          id: uuidv4(),
+          name,
+          inviteCode,
+          createdBy: userId,
+          createdAt: Date.now(),
+        },
+        { transaction },
+      );
+
+      // Add creator as first member
+      await Member.create(
+        {
+          groupId: group.id,
+          userId: userId,
+          position: 0,
+          active: true,
+        },
+        { transaction },
+      );
+
+      // Remaining members keep the order they were given.
+      if (memberIds.length > 0) {
+        await Member.bulkCreate(
+          memberIds.map((id, i) => ({
+            groupId: group.id,
+            userId: id,
+            position: i + 1,
+            active: true,
+          })),
+          { transaction },
+        );
+      }
+
+      return group;
+    });
   }
 
   async joinGroup(userId, inviteCode) {

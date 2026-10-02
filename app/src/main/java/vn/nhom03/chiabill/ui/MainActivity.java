@@ -117,22 +117,21 @@ public class MainActivity extends BaseActivity {
             .commit();
     }
 
-    /** Bấm thông báo: đổi sang tài khoản người nhận rồi mở đúng khoản nợ / hoá đơn. */
+    /**
+     * Bấm thông báo: mở đúng khoản nợ / hoá đơn. Server cấp token theo từng tài khoản nên
+     * không thể tự chuyển sang tài khoản người nhận; nếu thông báo của người khác thì nhắc đăng nhập.
+     */
     private boolean handleNotificationIntent(Intent intent) {
         if (intent == null) return false;
         String asUser = intent.getStringExtra(Nav.AS_USER);
         if (asUser == null) return false;
         intent.removeExtra(Nav.AS_USER);
-        boolean switched = !asUser.equals(me());
-
-        // Ensure the user is cached locally to prevent 'userMissing' redirect
-        vn.nhom03.chiabill.data.db.UserEntity user =
-            new vn.nhom03.chiabill.data.db.UserEntity();
-        user.id = asUser;
-        // name and phone might be unknown here, but the ID is enough to satisfy userMissing()
-        app().repository().saveUserNow(user);
-
-        session().signIn(asUser, "dummy-token");
+        if (!asUser.equals(me())) {
+            toast(
+                "Thông báo này dành cho tài khoản khác. Hãy đăng xuất và đăng nhập đúng tài khoản để xem."
+            );
+            return true;
+        }
         String debtKey = intent.getStringExtra(Nav.DEBT_KEY);
         String billId = intent.getStringExtra(Nav.BILL_ID);
         if (debtKey != null) {
@@ -150,7 +149,6 @@ public class MainActivity extends BaseActivity {
                 )
             );
         }
-        if (switched) toast("Đã chuyển sang tài khoản người nhận thông báo.");
         return true;
     }
 

@@ -25,7 +25,10 @@ const authMiddleware = (req, res, next) => {
 
   try {
     const decoded = jwt.verify(token, config.app.jwtSecret);
-    req.user = decoded; // Attach user info (id, etc.) to request
+    // The token carries `userId` (a number: Users.id is an integer column);
+    // controllers read `req.user.id` and compare it with string id columns
+    // such as Bills.payerId, so expose it as a string.
+    req.user = { ...decoded, id: String(decoded.userId) };
     next();
   } catch (err) {
     return res.status(401).json({
