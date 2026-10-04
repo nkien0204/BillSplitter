@@ -453,7 +453,6 @@ public class GroupDetailActivity extends BaseActivity {
         box.addView(input);
         new MaterialAlertDialogBuilder(this)
             .setTitle("Thêm thành viên")
-            .setMessage(getString(vn.nhom03.chiabill.R.string.demo_phones))
             .setView(box)
             .setPositiveButton("Tìm", (d, w) ->
                 lookup(input.getText().toString())

@@ -14,9 +14,6 @@
     <string name="tab_debts">Khoản nợ</string>
     <string name="tab_me">Tôi</string>
 
-    <string name="login_title">Chọn tài khoản demo</string>
-    <string name="login_sub">Bản demo chạy offline: mọi tài khoản ở chung máy này và thấy dữ liệu của nhau như khi dùng thật. Mỗi tài khoản có một số điện thoại để người khác tìm và thêm vào nhóm. Đổi tài khoản bất cứ lúc nào ở tab Tôi.</string>
-    <string name="demo_phones">Số demo: Đạt 0901 111 111 · Minh 0902 222 222 · Lan 0903 333 333 · Tuấn 0904 444 444</string>
     <string name="login_create">+ Tạo tài khoản mới</string>
     <string name="login_name_hint">Tên hiển thị</string>
 
@@ -25,5 +22,4 @@
     <string name="cancel">Huỷ</string>
     <string name="ok">OK</string>
     <string name="not_now">Để sau</string>
-    <string name="app_is_offline_demo">Bản demo offline · dữ liệu chỉ nằm trên máy này</string>
 </resources>
