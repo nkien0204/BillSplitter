@@ -1,5 +1,6 @@
 package vn.nhom03.chiabill.data.repo;
 
+import android.content.Context;
 import android.util.Log;
 import com.google.gson.Gson;
 import retrofit2.Call;
@@ -7,6 +8,7 @@ import retrofit2.Callback;
 import retrofit2.Response;
 import vn.nhom03.chiabill.data.network.AuthApi;
 import vn.nhom03.chiabill.data.network.AuthApi.ApiError;
+import vn.nhom03.chiabill.data.network.AuthApi.MeResponse;
 import vn.nhom03.chiabill.data.network.AuthApi.UserAuthResponse;
 import vn.nhom03.chiabill.data.network.AuthApi.UserLoginRequest;
 import vn.nhom03.chiabill.data.network.AuthApi.UserRegisterRequest;
@@ -18,8 +20,8 @@ public class RemoteAuthRepository implements AuthRepository {
     private final AuthApi authApi;
     private final Gson gson = new Gson();
 
-    public RemoteAuthRepository() {
-        this.authApi = NetworkClient.getAuthApi();
+    public RemoteAuthRepository(Context context) {
+        this.authApi = NetworkClient.getAuthApi(context.getApplicationContext());
     }
 
     private String parseErrorMessage(Response<?> response) {
@@ -145,6 +147,32 @@ public class RemoteAuthRepository implements AuthRepository {
                 public void onFailure(Call<Void> call, Throwable t) {
                     Log.e(TAG, "Logout network failure: " + t.getMessage());
                     callback.onError("Network error: " + t.getMessage());
+                }
+            }
+        );
+    }
+
+    @Override
+    public void me(AuthCallback<UserAuthResponse.UserInfo> callback) {
+        authApi.me().enqueue(
+            new Callback<MeResponse>() {
+                @Override
+                public void onResponse(
+                    Call<MeResponse> call,
+                    Response<MeResponse> response
+                ) {
+                    if (response.isSuccessful() && response.body() != null) {
+                        callback.onSuccess(response.body().user);
+                    } else if (response.code() == 401) {
+                        callback.onError("INVALID_TOKEN");
+                    } else {
+                        callback.onError("SERVER_ERROR");
+                    }
+                }
+
+                @Override
+                public void onFailure(Call<MeResponse> call, Throwable t) {
+                    callback.onError("NETWORK_ERROR");
                 }
             }
         );

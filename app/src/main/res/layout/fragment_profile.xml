@@ -171,25 +171,12 @@
             android:layout_height="wrap_content"
             android:nestedScrollingEnabled="false" />
 
-        <TextView
-            style="@style/Text.Section"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Demo" />
-
         <com.google.android.material.button.MaterialButton
             android:id="@+id/switchAccount"
             style="@style/Button.Primary"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Đổi tài khoản" />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/resetDemo"
-            style="@style/Button.Secondary"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="8dp"
-            android:text="Đặt lại dữ liệu demo" />
+            android:layout_marginTop="16dp"
+            android:text="Đăng xuất" />
     </LinearLayout>
 </androidx.core.widget.NestedScrollView>

@@ -30,9 +30,28 @@ class AuthController {
   }
 
   async logout(req, res) {
-    // In a stateless JWT architecture, logout is handled by the client deleting the token.
-    // We provide an endpoint for compatibility or for future blacklist implementation.
-    res.status(200).json({ message: 'Logged out successfully. Please delete your token on the client.' });
+    try {
+      await AuthService.revokeSession(req.user.sessionId);
+      res.status(200).json({ message: 'Logged out successfully.' });
+    } catch (error) {
+      res.status(500).json({
+        error: { code: 'INTERNAL_SERVER_ERROR', message: 'Logout failed' },
+      });
+    }
+  }
+
+  // Lets the client check that its stored token is still valid (auto-login).
+  async me(req, res) {
+    try {
+      res.status(200).json({ user: await AuthService.me(req.user.userId) });
+    } catch (error) {
+      res.status(401).json({
+        error: {
+          code: error.code || 'UNAUTHORIZED',
+          message: error.message || 'Unauthorized',
+        },
+      });
+    }
   }
 }
 

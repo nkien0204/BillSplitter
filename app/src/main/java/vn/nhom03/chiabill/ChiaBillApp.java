@@ -30,7 +30,7 @@ public class ChiaBillApp extends Application {
             AppDatabase.get(this).dao(),
             notifications
         );
-        authRepository = new RemoteAuthRepository();
+        authRepository = new RemoteAuthRepository(this);
     }
 
     public LedgerRepository repository() {

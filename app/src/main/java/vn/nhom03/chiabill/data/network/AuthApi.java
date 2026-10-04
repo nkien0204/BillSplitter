@@ -2,6 +2,7 @@ package vn.nhom03.chiabill.data.network;
 
 import retrofit2.Call;
 import retrofit2.http.Body;
+import retrofit2.http.GET;
 import retrofit2.http.POST;
 
 public interface AuthApi {
@@ -13,6 +14,14 @@ public interface AuthApi {
 
     @POST("api/auth/logout")
     Call<Void> logout();
+
+    @GET("api/auth/me")
+    Call<MeResponse> me();
+
+    class MeResponse {
+
+        public UserAuthResponse.UserInfo user;
+    }
 
     class UserRegisterRequest {
 

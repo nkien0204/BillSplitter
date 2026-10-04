@@ -3,11 +3,13 @@ package vn.nhom03.chiabill.ui;
 import android.content.Intent;
 import android.os.Bundle;
 import android.text.InputType;
+import android.view.View;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.Toast;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import vn.nhom03.chiabill.R;
+import vn.nhom03.chiabill.data.network.AuthApi;
 import vn.nhom03.chiabill.data.network.AuthApi.UserAuthResponse;
 import vn.nhom03.chiabill.data.repo.AuthRepository;
 import vn.nhom03.chiabill.databinding.ActivityLoginBinding;
@@ -27,6 +29,38 @@ public class LoginActivity extends BaseActivity {
 
         b.btnLogin.setOnClickListener(v -> handleLogin());
         b.create.setOnClickListener(v -> askRegister());
+
+        if (session().currentUserId() != null && session().authToken() != null) {
+            autoLogin();
+        }
+    }
+
+    /**
+     * Đã có token: hỏi server xem còn hợp lệ không. Còn → vào thẳng màn chính; bị từ chối → xoá
+     * session và hiện màn đăng nhập; không liên lạc được server (mất mạng, 5xx) → vẫn vào màn chính.
+     */
+    private void autoLogin() {
+        b.getRoot().setVisibility(View.INVISIBLE);
+        app()
+            .authRepository()
+            .me(
+                new AuthRepository.AuthCallback<AuthApi.UserAuthResponse.UserInfo>() {
+                    @Override
+                    public void onSuccess(AuthApi.UserAuthResponse.UserInfo u) {
+                        openMain();
+                    }
+
+                    @Override
+                    public void onError(String errorCode) {
+                        if ("INVALID_TOKEN".equals(errorCode)) {
+                            session().signOut();
+                            b.getRoot().setVisibility(View.VISIBLE);
+                        } else {
+                            openMain();
+                        }
+                    }
+                }
+            );
     }
 
     private void handleLogin() {

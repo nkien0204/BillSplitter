@@ -1,5 +1,6 @@
 package vn.nhom03.chiabill.ui.tabs;
 
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.os.Bundle;
@@ -20,6 +21,7 @@ import vn.nhom03.chiabill.ChiaBillApp;
 import vn.nhom03.chiabill.data.db.InboxEntity;
 import vn.nhom03.chiabill.data.db.UserEntity;
 import vn.nhom03.chiabill.data.repo.AppSnapshot;
+import vn.nhom03.chiabill.data.repo.AuthRepository;
 import vn.nhom03.chiabill.databinding.FragmentProfileBinding;
 import vn.nhom03.chiabill.domain.qr.BankDirectory;
 import vn.nhom03.chiabill.domain.qr.PaymentTarget;
@@ -53,34 +55,7 @@ public class ProfileFragment extends BaseFragment {
             startActivity(new Intent(requireContext(), QrSetupActivity.class))
         );
         b.rename.setOnClickListener(v -> askName());
-        b.switchAccount.setOnClickListener(v -> {
-            app().session().signOut();
-            startActivity(
-                new Intent(requireContext(), LoginActivity.class).addFlags(
-                    Intent.FLAG_ACTIVITY_CLEAR_TASK |
-                        Intent.FLAG_ACTIVITY_NEW_TASK
-                )
-            );
-        });
-        b.resetDemo.setOnClickListener(v ->
-            new MaterialAlertDialogBuilder(requireContext())
-                .setTitle("Đặt lại dữ liệu demo?")
-                .setMessage(
-                    "Xoá mọi nhóm, hoá đơn, tài khoản đã tạo và nạp lại dữ liệu mẫu."
-                )
-                .setPositiveButton("Đặt lại", (d, w) -> {
-                    // Lấy app ngay bây giờ: callback chạy sau, lúc đó fragment có thể đã detach (requireActivity() sẽ ném).
-                    ChiaBillApp a = app();
-                    a.repository().resetDemo(() -> {
-                        a.session().signIn("dat", "dummy-token");
-                        toast(
-                            "Đã nạp lại dữ liệu demo. Đang dùng tài khoản Đạt."
-                        );
-                    });
-                })
-                .setNegativeButton("Huỷ", null)
-                .show()
-        );
+        b.switchAccount.setOnClickListener(v -> logout());
         b.notifWarning.setOnClickListener(v -> {
             Intent i = new Intent(
                 Settings.ACTION_APP_NOTIFICATION_SETTINGS
@@ -91,6 +66,39 @@ public class ProfileFragment extends BaseFragment {
             startActivity(i);
         });
         return b.getRoot();
+    }
+
+    /**
+     * Thu hồi token trên server rồi xoá session cục bộ. Dù server lỗi hay mất mạng vẫn đăng xuất
+     * cục bộ (token cũ sẽ tự hết hạn); lấy app trước vì callback chạy sau khi fragment có thể đã detach.
+     */
+    private void logout() {
+        ChiaBillApp a = app();
+        Context ctx = requireContext().getApplicationContext();
+        b.switchAccount.setEnabled(false);
+        AuthRepository.AuthCallback<Void> done =
+            new AuthRepository.AuthCallback<Void>() {
+                @Override
+                public void onSuccess(Void result) {
+                    finish();
+                }
+
+                @Override
+                public void onError(String message) {
+                    finish();
+                }
+
+                private void finish() {
+                    a.session().signOut();
+                    ctx.startActivity(
+                        new Intent(ctx, LoginActivity.class).addFlags(
+                            Intent.FLAG_ACTIVITY_CLEAR_TASK |
+                                Intent.FLAG_ACTIVITY_NEW_TASK
+                        )
+                    );
+                }
+            };
+        a.authRepository().logout(done);
     }
 
     @Override
