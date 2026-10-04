@@ -105,7 +105,7 @@ public class GroupsFragment extends BaseFragment {
         box.addView(input);
         new MaterialAlertDialogBuilder(requireContext())
                 .setTitle("Vào nhóm bằng mã mời")
-                .setMessage("Người trong nhóm gửi mã cho bạn. Demo: DAL-AT7 (Đà Lạt), LAB-234 (phòng lab).")
+                .setMessage("Người trong nhóm gửi mã cho bạn.")
                 .setView(box)
                 .setPositiveButton("Vào nhóm", (d, w) -> {
                     ChiaBillApp a = app(); // callback chạy sau, fragment có thể đã detach

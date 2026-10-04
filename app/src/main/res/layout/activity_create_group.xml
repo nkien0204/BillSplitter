@@ -81,14 +81,6 @@
                 layout="@layout/item_found_user"
                 android:visibility="gone" />
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="6dp"
-                android:text="@string/demo_phones"
-                android:textColor="@color/muted"
-                android:textSize="12sp" />
-
             <com.google.android.material.chip.ChipGroup
                 android:id="@+id/accounts"
                 android:layout_width="match_parent"

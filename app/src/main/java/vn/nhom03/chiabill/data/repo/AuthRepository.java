@@ -11,4 +11,7 @@ public interface AuthRepository {
     void register(String name, String phone, String password, AuthCallback<UserAuthResponse> callback);
     void login(String phone, String password, AuthCallback<UserAuthResponse> callback);
     void logout(AuthCallback<Void> callback);
+
+    /** Kiểm tra token đã lưu. onError("INVALID_TOKEN") khi server từ chối; mã khác (mất mạng, 5xx) = chưa biết. */
+    void me(AuthCallback<UserAuthResponse.UserInfo> callback);
 }

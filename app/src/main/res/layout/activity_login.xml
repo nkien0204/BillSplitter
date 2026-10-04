@@ -15,28 +15,10 @@
         android:textSize="32sp"
         android:textStyle="bold" />
 
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:text="@string/login_title"
-        android:textColor="@color/ink"
-        android:textSize="20sp"
-        android:textStyle="bold" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:layout_marginBottom="16dp"
-        android:lineSpacingMultiplier="1.2"
-        android:text="@string/login_sub"
-        android:textColor="@color/muted"
-        android:textSize="14sp" />
-
     <com.google.android.material.textfield.TextInputLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginTop="32dp"
         android:hint="Số điện thoại">
         <com.google.android.material.textfield.TextInputEditText
             android:id="@+id/edit_phone"
