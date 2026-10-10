@@ -1,6 +1,7 @@
 # Android & General
 .gradle/
 build/
+bin/
 /local.properties
 .idea/
 *.iml
