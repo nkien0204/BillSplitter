@@ -12,5 +12,6 @@ router.get("/", groupController.list);
 router.get("/:groupId/members", groupController.getMembers);
 router.delete("/members/:groupId/:userId", groupController.removeMember);
 router.delete("/:groupId/leave", groupController.leave);
+router.delete("/:groupId", groupController.delete);
 
 module.exports = router;

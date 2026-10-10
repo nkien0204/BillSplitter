@@ -180,6 +180,15 @@
                 android:layout_marginTop="16dp"
                 android:text="Rời nhóm"
                 android:textColor="@color/owe" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/deleteGroup"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Xoá nhóm"
+                android:textColor="@color/owe"
+                android:visibility="gone" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>

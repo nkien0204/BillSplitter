@@ -64,6 +64,16 @@ class GroupController {
     }
   }
 
+  async delete(req, res) {
+    try {
+      const { groupId } = req.params;
+      await groupService.deleteGroup(groupId, req.user.id);
+      res.status(200).json({ message: "Group deleted successfully" });
+    } catch (error) {
+      res.status(error.status || 400).json({ error: error.message });
+    }
+  }
+
   async leave(req, res) {
     try {
       const { groupId } = req.params;

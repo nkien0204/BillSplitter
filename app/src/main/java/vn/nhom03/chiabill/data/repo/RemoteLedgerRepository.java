@@ -209,6 +209,39 @@ public class RemoteLedgerRepository implements LedgerRepository {
     }
 
     @Override
+    public void deleteGroup(
+        String groupId,
+        String actorId,
+        Runnable done,
+        Callback<String> onError
+    ) {
+        executor.execute(() -> {
+            try {
+                // Money rules live on the client: refuse before touching the server.
+                String blocker = localRepo.groupDeleteBlockerNow(
+                    groupId,
+                    actorId
+                );
+                if (blocker != null) {
+                    onMain(onError, blocker);
+                    return;
+                }
+                Response<Void> response = api.deleteGroup(groupId).execute();
+                // 404: already gone on the server, so just clean up the local copy.
+                if (response.isSuccessful() || response.code() == 404) {
+                    localRepo.deleteGroup(groupId, actorId, done, onError);
+                } else if (response.code() == 403) {
+                    onMain(onError, "Chỉ người tạo nhóm mới xoá được nhóm.");
+                } else {
+                    onMain(onError, "Delete failed: " + response.code());
+                }
+            } catch (Exception e) {
+                onMain(onError, String.valueOf(e.getMessage()));
+            }
+        });
+    }
+
+    @Override
     public void leaveGroup(
         String groupId,
         String userId,

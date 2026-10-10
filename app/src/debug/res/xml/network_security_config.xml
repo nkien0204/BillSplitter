@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Debug builds only: the dev backend runs on a LAN IP that changes with the network,
+     and Android cannot allow-list IP ranges, so permit cleartext HTTP here.
+     Release builds use src/main/res/xml/network_security_config.xml. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

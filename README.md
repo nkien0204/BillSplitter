@@ -61,6 +61,22 @@ Android blocks plain `http://` unless the host is allowed. Add the same address 
 
 `10.0.2.2` and `localhost` are already listed. Do not commit your personal IP; keep that change local or revert it before committing.
 
+#### Option: reach the backend over the internet (ngrok static domain)
+
+A free ngrok account gives you one permanent domain, so `BACKEND_URL` never changes and works from any network. Set it to your domain (HTTPS, so no `network_security_config.xml` change is needed):
+
+```
+BACKEND_URL="https://<your-domain>.ngrok-free.app/"
+```
+
+Start the backend, then the tunnel (use the `app.port` value from `config.json`):
+
+```bash
+ngrok http --url=<your-domain>.ngrok-free.app 5099
+```
+
+The backend is reachable only while your computer and the tunnel are running.
+
 ### 3. Build and install the app
 
 Create `local.properties` in the project root if Android Studio has not already (`sdk.dir=/path/to/Android/sdk`), then:
