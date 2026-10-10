@@ -48,6 +48,9 @@ public interface ChiaBillApi {
         @Path("userId") String userId
     );
 
+    @DELETE("api/groups/{groupId}")
+    Call<Void> deleteGroup(@Path("groupId") String groupId);
+
     @DELETE("api/groups/{groupId}/leave")
     Call<Void> leaveGroup(@Path("groupId") String groupId);
 

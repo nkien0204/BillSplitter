@@ -77,6 +77,17 @@ public interface LedgerRepository {
         Callback<String> onError
     );
 
+    /**
+     * Xoá nhóm cùng toàn bộ hoá đơn và khoản nợ. Chỉ người tạo nhóm được xoá, và chỉ khi mọi
+     * khoản trong nhóm đã xác nhận xong. Các thành viên còn lại nhận thông báo.
+     */
+    void deleteGroup(
+        String groupId,
+        String actorId,
+        Runnable done,
+        Callback<String> onError
+    );
+
     /** Synchronize group data from remote server to local cache. */
     void syncGroup(String groupId, Runnable done, Callback<String> onError);
 

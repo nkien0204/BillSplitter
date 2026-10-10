@@ -397,6 +397,50 @@ public final class LocalLedgerRepository implements LedgerRepository {
     }
 
     @Override
+    public void deleteGroup(
+        String groupId,
+        String actorId,
+        Runnable done,
+        Callback<String> onError
+    ) {
+        io.execute(() -> {
+            String blocker = groupDeleteBlockerNow(groupId, actorId);
+            if (blocker != null) {
+                onMain(onError, blocker);
+                return;
+            }
+            GroupEntity g = dao.groupNow(groupId);
+            if (g != null) {
+                String message =
+                    nameOf(actorId) + " đã xoá nhóm “" + g.name + "”.";
+                for (String id : activeMemberIds(groupId))
+                    if (!id.equals(actorId)) notifyUser(id, message, null, null);
+                dao.deleteGroup(groupId);
+            }
+            onMain(done);
+        });
+    }
+
+    /**
+     * Lý do chưa xoá được nhóm, hoặc null nếu xoá được. Chạy trên luồng nền (đọc Room trực tiếp).
+     * Remote repository gọi trước khi báo server để không xoá ở server rồi mới bị từ chối ở máy.
+     */
+    public String groupDeleteBlockerNow(String groupId, String actorId) {
+        GroupEntity g = dao.groupNow(groupId);
+        if (g == null) return "Nhóm không còn.";
+        if (!actorId.equals(g.createdBy))
+            return "Chỉ người tạo nhóm mới xoá được nhóm.";
+        long open = unsettledTotal(groupId);
+        if (open > 0)
+            return (
+                "Nhóm còn " +
+                Money.format(open) +
+                " chưa xác nhận xong. Tất toán xong rồi mới xoá được nhóm."
+            );
+        return null;
+    }
+
+    @Override
     public void leaveGroup(
         String groupId,
         String userId,
@@ -982,6 +1026,38 @@ public final class LocalLedgerRepository implements LedgerRepository {
         if (owes > 0) return "còn nợ " + Money.format(owes);
         if (owed > 0) return "còn chờ người khác trả " + Money.format(owed);
         return null;
+    }
+
+    /** Tổng các khoản chưa được xác nhận (CONFIRMED) của mọi người trong nhóm. */
+    private long unsettledTotal(String groupId) {
+        List<String> order = memberIds(groupId);
+        Map<String, String> status = new HashMap<>();
+        for (DebtStatusEntity s : dao.statusesOfGroupNow(groupId))
+            status.put(s.debtKey, s.status);
+        long total = 0;
+        for (BillEntity be : dao.billsOfGroupNow(groupId)) {
+            SplitResult r;
+            try {
+                r = SplitEngine.split(
+                    Mappers.toBill(be, dao.itemsNow(be.id)).getSpec(),
+                    order
+                );
+            } catch (IllegalArgumentException ex) {
+                continue;
+            }
+            for (ShareLine l : r.getLines()) {
+                if (
+                    l.getMemberId().equals(be.payerId) || l.getAmount() <= 0
+                ) continue;
+                if (
+                    DebtStatus.CONFIRMED.name().equals(
+                        status.get(Debt.keyOf(be.id, l.getMemberId()))
+                    )
+                ) continue;
+                total += l.getAmount();
+            }
+        }
+        return total;
     }
 
     private List<String> activeMemberIds(String groupId) {

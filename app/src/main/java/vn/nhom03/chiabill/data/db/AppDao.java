@@ -121,6 +121,31 @@ public abstract class AppDao {
         if (!items.isEmpty()) insertItems(items);
     }
 
+    @Query("DELETE FROM bill_items WHERE billId IN (SELECT id FROM bills WHERE groupId = :groupId)")
+    public abstract void deleteItemsOfGroup(String groupId);
+
+    @Query("DELETE FROM debt_status WHERE billId IN (SELECT id FROM bills WHERE groupId = :groupId)")
+    public abstract void deleteStatusesOfGroup(String groupId);
+
+    @Query("DELETE FROM bills WHERE groupId = :groupId")
+    public abstract void deleteBillsOfGroup(String groupId);
+
+    @Query("DELETE FROM members WHERE groupId = :groupId")
+    public abstract void deleteMembersOfGroup(String groupId);
+
+    @Query("DELETE FROM bill_groups WHERE id = :groupId")
+    public abstract void deleteGroupRow(String groupId);
+
+    /** Xoá nhóm cùng toàn bộ hoá đơn, khoản nợ và thành viên của nó, trong một giao dịch. */
+    @Transaction
+    public void deleteGroup(String groupId) {
+        deleteItemsOfGroup(groupId);
+        deleteStatusesOfGroup(groupId);
+        deleteBillsOfGroup(groupId);
+        deleteMembersOfGroup(groupId);
+        deleteGroupRow(groupId);
+    }
+
     @Transaction
     public void deleteBill(String billId) {
         deleteItems(billId);

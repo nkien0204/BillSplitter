@@ -1,6 +1,10 @@
 const Group = require("../models/group.model");
 const Member = require("../models/member.model");
 const User = require("../models/user.model");
+const Bill = require("../models/bill.model");
+const BillItem = require("../models/billItem.model");
+const DebtStatus = require("../models/debtStatus.model");
+const Inbox = require("../models/inbox.model");
 const sequelize = require("../config/db");
 const { v4: uuidv4 } = require("uuid");
 
@@ -168,6 +172,61 @@ class GroupService {
       });
     }
     return { success: true };
+  }
+
+  /**
+   * Deletes a group with all its bills, items, debt statuses, related inbox
+   * messages and memberships. Only the creator may do it. Everything is removed
+   * in one transaction; active members are notified in the same transaction.
+   *
+   * Money checks (e.g. unsettled debts) are done by the client: shares are
+   * derived from bills by the domain split engine, which the server lacks.
+   */
+  async deleteGroup(groupId, actorId) {
+    return sequelize.transaction(async (transaction) => {
+      const group = await Group.findByPk(groupId, { transaction });
+      if (!group) throw this._error(404, "Group not found");
+      if (group.createdBy !== actorId)
+        throw this._error(403, "Only the group creator can delete the group");
+
+      const members = await Member.findAll({ where: { groupId }, transaction });
+      const bills = await Bill.findAll({
+        where: { groupId },
+        attributes: ["id"],
+        transaction,
+      });
+      const billIds = bills.map((b) => b.id);
+
+      if (billIds.length > 0) {
+        await BillItem.destroy({ where: { billId: billIds }, transaction });
+        await DebtStatus.destroy({ where: { billId: billIds }, transaction });
+        await Inbox.destroy({ where: { billId: billIds }, transaction });
+        await Bill.destroy({ where: { id: billIds }, transaction });
+      }
+      await Member.destroy({ where: { groupId }, transaction });
+      await Group.destroy({ where: { id: groupId }, transaction });
+
+      const actor = await User.findByPk(actorId, { transaction });
+      const now = Date.now();
+      const recipients = members.filter((m) => m.active && m.userId !== actorId);
+      if (recipients.length > 0) {
+        await Inbox.bulkCreate(
+          recipients.map((m) => ({
+            recipientId: m.userId,
+            message: `${actor ? actor.name : "Người tạo nhóm"} đã xoá nhóm “${group.name}”.`,
+            createdAt: now,
+          })),
+          { transaction },
+        );
+      }
+      return { success: true };
+    });
+  }
+
+  _error(status, message) {
+    const err = new Error(message);
+    err.status = status;
+    return err;
   }
 
   async leaveGroup(groupId, userId) {

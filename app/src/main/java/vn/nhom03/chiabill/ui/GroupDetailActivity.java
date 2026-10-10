@@ -78,6 +78,7 @@ public class GroupDetailActivity extends BaseActivity {
         b.addMember.setOnClickListener(v -> askPhone());
         b.shareInvite.setOnClickListener(v -> shareInvite());
         b.leaveGroup.setOnClickListener(v -> confirmLeave());
+        b.deleteGroup.setOnClickListener(v -> confirmDelete());
         repo().snapshot().observe(this, this::render);
 
         // Sync data from server when entering the group
@@ -103,6 +104,9 @@ public class GroupDetailActivity extends BaseActivity {
             return;
         }
         Ledger l = s.ledger();
+        b.deleteGroup.setVisibility(
+            me.equals(g.createdBy) ? View.VISIBLE : View.GONE
+        );
         b.toolbar.setTitle(g.name);
         b.toolbar.setSubtitle(s.membersOf(groupId).size() + " thành viên");
 
@@ -412,6 +416,35 @@ public class GroupDetailActivity extends BaseActivity {
                     this::toast
                 )
             )
+            .setNegativeButton(R.string.cancel, null)
+            .show();
+    }
+
+    private void confirmDelete() {
+        String name = last != null && last.group(groupId) != null
+            ? last.group(groupId).name
+            : "";
+        new MaterialAlertDialogBuilder(this)
+            .setTitle("Xoá nhóm “" + name + "”?")
+            .setMessage(
+                "Toàn bộ hoá đơn và lịch sử của nhóm sẽ bị xoá vĩnh viễn, với mọi thành viên. " +
+                    "Chỉ xoá được khi mọi khoản trong nhóm đã xác nhận xong. Không thể hoàn tác."
+            )
+            .setPositiveButton("Xoá nhóm", (d, w) -> {
+                leaving = true; // snapshot có thể tới trước callback: đừng báo "không ở trong nhóm"
+                repo().deleteGroup(
+                    groupId,
+                    me(),
+                    () -> {
+                        toast("Đã xoá nhóm.");
+                        finish();
+                    },
+                    err -> {
+                        leaving = false;
+                        toast(err);
+                    }
+                );
+            })
             .setNegativeButton(R.string.cancel, null)
             .show();
     }
