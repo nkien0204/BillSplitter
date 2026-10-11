@@ -4,7 +4,17 @@ Học phần Lập trình ứng dụng di động (ET4710) · Nhóm 03 · Java n
 
 Một người trả hộ cả nhóm, nhập hoá đơn, chọn ai ăn gì. Mỗi người nhận phần của mình kèm **mã VietQR của người trả đã điền sẵn số tiền và nội dung**, quét bằng app ngân hàng là chuyển được. Người trả thấy ai đã chuyển, xác nhận đã nhận, hoặc nhắc.
 
-Bản này là **bản demo offline**: mọi tài khoản demo nằm chung một CSDL trên máy, nên các tài khoản thật sự tương tác với nhau (Minh tạo hoá đơn thì Đạt thấy khoản nợ; Đạt bấm "Tôi đã chuyển" thì Minh nhận thông báo). Thiết kế đầy đủ: `docs/project-brief.md`.
+**Bản 0.4.0 chạy online**: các máy dùng chung một máy chủ (Render + Supabase, gói miễn phí). Đăng nhập là thấy nhóm, hoá đơn, khoản nợ của nhau; app tự đồng bộ mỗi 20 giây khi đang mở, kéo xuống để làm mới, và báo khi có hoá đơn hoặc khoản chuyển mới. Thiết kế đầy đủ: `docs/project-brief.md`.
+
+### Có gì mới ở 0.4.0
+
+- **Chụp hoá đơn để điền tự động**: ML Kit đọc chữ ngay trên máy (không gửi ảnh đi để đọc), `ReceiptParser` tìm tổng tiền, tên quán và các món. Ảnh hoá đơn được lưu kèm hoá đơn.
+- **Ảnh chuyển khoản**: bấm "Tôi đã chuyển" có thể đính kèm ảnh chụp màn hình; người nhận xem ảnh rồi bấm "Đã nhận tiền".
+- **Gửi qua Zalo**: nút chia sẻ mở thẳng Zalo kèm ảnh QR và lời nhắn.
+- **Gọn hơn**: bỏ VAT, phí dịch vụ và làm tròn (nhập đúng tổng trên hoá đơn); bỏ bộ lọc lịch sử, ô dán payload QR, mục khách chưa cài app.
+- **Icon mới** (`docs/icon/`).
+
+**Đưa lên mạng: làm theo [`backend/DEPLOY.md`](backend/DEPLOY.md)** (Supabase → Render → build APK).
 
 ## Getting started (app + backend)
 
@@ -158,26 +168,25 @@ Tab Tôi có **Đổi tài khoản** và **Đặt lại dữ liệu demo**. Bả
 
 ## Demo trên nhiều máy thật thì cần gì
 
-Bản offline không cần connector hay dịch vụ ngoài nào. Muốn hai điện thoại thấy dữ liệu của nhau thì cần backend, và nó **không phải connector của Claude** mà là một dự án Firebase của nhóm:
-
-1. Tạo project trên Firebase Console, bật **Authentication** (Email/Password, Google) và **Cloud Firestore**.
-2. Thêm app Android `vn.nhom03.chiabill`, tải `google-services.json` vào thư mục `app/` (không commit file này lên repo công khai nếu có cấu hình nhạy cảm; rules Firestore mới là lớp bảo vệ thật).
-3. Hiện thực `FirebaseLedgerRepository implements LedgerRepository` và đổi một dòng trong `ChiaBillApp`. UI không phải sửa, vì mọi màn chỉ đọc `LedgerRepository.snapshot()`.
-4. Viết Firestore Security Rules theo bảng threat model ở mục 13.2 của `docs/project-brief.md` (chỉ thành viên nhóm đọc được nhóm; chỉ chủ tài khoản sửa QR của mình; chỉ người trả được xác nhận).
+Một máy chủ chung trên Render (miễn phí) nối với Supabase (Postgres + chỗ chứa ảnh, miễn phí). Các bước, từng cú bấm: [`backend/DEPLOY.md`](backend/DEPLOY.md). App trỏ tới `BACKEND_URL` trong `gradle.properties` (mặc định `https://chiabill-api.onrender.com/`).
 
 ## Kiến trúc
 
 ```
 :domain  (java-library thuần, không phụ thuộc Android)
-  split/   Allocator (phần dư lớn nhất) · SplitEngine (chia đều / theo món / số tiền / theo %, VAT, phí, làm tròn)
+  split/   Allocator (phần dư lớn nhất) · SplitEngine (chia đều / theo món / số tiền / theo %)
+  receipt/ ReceiptParser (chữ OCR → tổng tiền, tên quán, các món)
   qr/      VietQrCodec (TLV EMVCo + CRC-16/CCITT) · TransferContent · BankDirectory
   ledger/  Ledger (khoản nợ, số dư) · DebtSimplifier (tối giản nợ) · PaymentStateMachine
   user/    PhoneNumber (chuẩn hoá SĐT) · InviteCode (mã mời 6 ký tự)
 :app
   data/db     Room: users, bill_groups, members, bills, bill_items, debt_status, inbox
-  data/repo   LedgerRepository (interface) · LocalLedgerRepository · AppSnapshot · DemoSeeder
+  data/repo   LedgerRepository (interface) · RemoteLedgerRepository (máy chủ + cache Room) · LocalLedgerRepository · AppSnapshot
+  data/remote Retrofit ChiaBillApi (/api/sync, /api/uploads, …)
   ui/         Login, Main (3 tab), nhóm, hoá đơn, khoản nợ + QR, tất toán, khai QR
-  util/       QR ảnh (ZXing), lưu/chia sẻ ảnh, thông báo, session
+  util/       QR ảnh (ZXing), ReceiptScanner (ML Kit), Photos, AutoSync, thông báo, session
+backend/   Express + Sequelize (SQLite trên máy, Postgres/Supabase khi deploy)
+  routes → controllers → services → models · migrations · test/ (system, upload, perf)
 ```
 
 - Tiền luôn là `long` VND; mọi phép chia dùng số nguyên.
@@ -188,13 +197,17 @@ Bản offline không cần connector hay dịch vụ ngoài nào. Muốn hai đi
 ## Kiểm thử
 
 - `domain/src/test`: 52 test JUnit 5, gồm 6 bộ property test có seed cố định: 10.000 hoá đơn ngẫu nhiên (đủ 4 cách chia) không lệch một đồng và không có phần âm; 5.000 mã mời sinh ra luôn đọc lại được; 5.000 lần encode→parse VietQR ra đúng dữ liệu; 5.000 bộ số dư tối giản về 0 với tối đa n−1 giao dịch; 20.000 lần phân bổ khớp tổng; 5.000 số điện thoại chuẩn hoá luỹ đẳng.
+- `domain/src/test/.../receipt`: 9 test cho `ReceiptParser` (định dạng tiền 150.000 / 1,250,000 / 150k / 1.5tr, chọn đúng dòng tổng, bỏ ngày giờ và số điện thoại).
+- `backend/test`: 15 test hệ thống chạy 3 tài khoản qua HTTP thật (đăng ký, nhóm, hoá đơn, đồng bộ, đánh dấu đã chuyển kèm ảnh, xác nhận, khiếu nại, sửa hoá đơn, tải ảnh lên Supabase giả). Chạy được trên SQLite và Postgres: `cd backend && npm test`.
+- `backend/test/perf/load.js` (`npm run test:perf`): đo `/api/sync` bằng autocannon, ghi kết quả vào `test/perf/results.json`. GitHub Actions (`.github/workflows/ci.yml`) chạy cả ba và build APK.
 - `app/src/androidTest`: Room in-memory + dữ liệu demo + SplitEngine.
 - Thủ công trên máy thật: quét QR sinh ra bằng app ngân hàng; thông báo; lưu ảnh; chia sẻ sang Zalo.
 
 ## Giới hạn đã biết
 
-- Dữ liệu chỉ nằm trên một máy; chưa có đăng nhập thật và đồng bộ nhiều máy. Mã mời chỉ dùng được giữa các tài khoản trên cùng máy; chưa có link mời.
-- Ảnh đại diện là chữ cái đầu trên màu cố định, chưa tải ảnh lên được.
+- Máy chủ miễn phí ngủ sau ~15 phút không dùng; lần mở đầu tiên sau đó chờ 30–60 giây. Supabase tạm dừng dự án sau 7 ngày không dùng.
+- Chưa có thông báo đẩy khi app đóng; app báo khi đang mở hoặc lần mở sau. Khi mất mạng, app chỉ xem được dữ liệu đã tải, chưa ghi được.
+- Đọc hoá đơn từ ảnh là gợi ý: luôn kiểm lại tổng tiền trước khi lưu. Hoá đơn viết tay đọc kém.
 - Người bị xoá vẫn vào lại được nếu biết mã mời (chưa có nút đổi mã).
 - App không xác minh được giao dịch ngân hàng: "đã thanh toán" dựa vào xác nhận của người trả.
 - QR của ví không theo chuẩn NAPAS VietQR không đọc được; khi đó nhập tay.

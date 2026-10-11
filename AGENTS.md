@@ -1,4 +1,4 @@
-# AI Agent Context & Development Guide — ChiaBill (v0.3.0)
+# AI Agent Context & Development Guide — ChiaBill (v0.4.0)
 
 Welcome, AI Agent. This project has pivoted from a React Native template to a **Java Native Android application**. This document provides the essential context to help you navigate the codebase and implement changes consistently.
 
@@ -6,7 +6,7 @@ Welcome, AI Agent. This project has pivoted from a React Native template to a **
 
 **ChiaBill** is an Android app for splitting shared expenses. It ensures that money calculations are deterministic and perfectly accurate (zero drift), allowing users to settle debts via **VietQR**.
 
-**Current Version:** v0.3.0 (Offline Demo). All accounts exist in one local database for demo purposes.
+**Current Version:** v0.4.0 (Online). The app talks to the Node backend (`backend/`), deployed on Render with Supabase Postgres + Storage (`render.yaml`, `backend/DEPLOY.md`). `RemoteLedgerRepository` writes through the API, then pulls `GET /api/sync` and replaces the Room cache (`AppDao.replaceAll`). `AutoSync` repeats that every 20 s while an activity is in the foreground.
 
 ## 🗺️ Primary Reference Documents
 
@@ -120,12 +120,21 @@ Do **not** use `sequelize.sync()`. Use the migration tool to ensure data stabili
 - [ ] Scan a generated QR with a real banking app and record evidence
 - [ ] Usability sessions: time to add an expense (NFR3), SUS score (NFR4)
 
-### Phase 2 — multi-device (optional)
+### Phase 2 — multi-device (done in v0.4.0)
 
-- [ ] Choose: Node/Express + JWT (per `architecture.md` §8) or Firebase
-- [ ] `RemoteLedgerRepository` (or `FirebaseLedgerRepository`) behind the existing interface
-- [ ] Offline queue with `pendingSync`, last-write-wins
-- [ ] Real Room migrations instead of destructive fallback
+- [x] Node/Express + JWT backend, Postgres via `DATABASE_URL`, migrations only (never `sync()`)
+- [x] `RemoteLedgerRepository` behind the existing interface; full snapshot sync (`/api/sync`)
+- [x] Photo upload (`/api/uploads`, Supabase Storage or local disk): bill photos and transfer proofs
+- [x] Receipt OCR: ML Kit on device + `:domain` `ReceiptParser`
+- [x] Payment status names shared by app and server: PENDING, MARKED_PAID, CONFIRMED, DISPUTED
+- [x] VAT/fee/rounding removed from the bill form (old bills still compute with their stored values)
+- [x] System tests (`backend/test`), perf test (`npm run test:perf`), CI workflow
+
+### Phase 2 — still to do
+
+- [ ] Offline write queue (writes currently need the server)
+- [ ] Push notifications while the app is closed (FCM)
+- [ ] Real Room migrations instead of destructive fallback (the Room DB is now a cache, so this matters less)
 
 ---
 

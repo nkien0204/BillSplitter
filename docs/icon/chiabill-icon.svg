@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="432" height="432" viewBox="0 0 108 108">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#11895F"/>
+      <stop offset="1" stop-color="#08553A"/>
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" fill="url(#bg)"/>
+  <g transform="translate(54 54) scale(1.12) translate(-54 -54)">
+  <!-- left half of the receipt -->
+  <path fill="#F4F1EA" d="M33,30H52V76l-3.17,-3 -3.17,3 -3.17,-3 -3.16,3 -3.17,-3 -3.16,3Z"/>
+  <!-- right half, shifted down: the bill is split -->
+  <path fill="#F4F1EA" d="M56,35H75V81l-3.17,-3 -3.17,3 -3.17,-3 -3.16,3 -3.17,-3 -3.16,3Z"/>
+  <path fill="#0B6B4A" d="M37,38h11v3H37zM37,45h11v3H37zM37,52h7v3H37zM60,43h11v3H60zM60,50h11v3H60z"/>
+  <!-- paid badge -->
+  <circle cx="68" cy="70" r="11" fill="#F2B33D" stroke="#0B6B4A" stroke-width="2.5"/>
+  <path d="M62.8,70.3l3.7,3.7l7.2,-7.4" fill="none" stroke="#1C1B19" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+</svg>

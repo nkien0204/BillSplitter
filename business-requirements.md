@@ -8,7 +8,7 @@ A mobile app for friends, roommates and small groups. One person pays a shared b
 
 **Target platform:** Android, **Java native** (course ET4710 requires Java; iOS is out of scope)
 **Target users:** Roommates, shared households, small friend groups
-**Current release:** v0.3.0 — offline demo. All demo accounts share one on-device database, so accounts interact on a single phone without a server.
+**Current release:** v0.4.0 — online. Devices share one backend (Render + Supabase); see `backend/DEPLOY.md`. Items marked Phase 2 below that v0.4.0 covers: multi-device sync, photo upload, receipt OCR.
 
 > **Change from the first draft (commit 3e60823):** the stack moved from React Native + Node/Express to Java native Android, because the course requires Java. The server-side requirements are kept, marked **Phase 2**, and the Android app already hides storage behind a `LedgerRepository` interface so a server can be added without touching the screens.
 
