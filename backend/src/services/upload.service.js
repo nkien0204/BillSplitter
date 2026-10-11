@@ -35,14 +35,13 @@ class UploadService {
 
   async _toSupabase(name, file) {
     const { url, serviceKey, bucket } = settings.supabase;
+    const headers = { apikey: serviceKey, "Content-Type": file.mimetype, "x-upsert": "true" };
+    // Legacy service_role keys are JWTs and go in Authorization too; the newer
+    // "sb_secret_..." keys are not JWTs and are accepted in apikey alone.
+    if (serviceKey.startsWith("eyJ")) headers.Authorization = `Bearer ${serviceKey}`;
     const res = await fetch(`${url}/storage/v1/object/${bucket}/${name}`, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${serviceKey}`,
-        apikey: serviceKey,
-        "Content-Type": file.mimetype,
-        "x-upsert": "true",
-      },
+      headers,
       body: file.buffer,
     });
     if (!res.ok) {

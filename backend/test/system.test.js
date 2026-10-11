@@ -151,3 +151,20 @@ test("uploads refuse non-images and requests without a token", async () => {
   const anon = await request(app).get("/api/sync");
   assert.equal(anon.status, 401);
 });
+
+test("editing a bill resets the status of debtors whose share changed, keeps confirmed", async () => {
+  const g = (await an.post("/api/groups", { name: "Sửa", memberIds: [binh.id] })).body;
+  const created = (await an.post("/api/bills", {
+    groupId: g.id, title: "Cafe", payerId: an.id, mode: "EQUAL", subtotal: 100000,
+    participantsCsv: `${an.id},${binh.id}`, rounding: 1,
+  })).body;
+  await binh.post("/api/payments/mark-paid", { billId: created.id });
+  const res = await an.put(`/api/bills/${created.id}`, {
+    title: "Cafe", payerId: an.id, mode: "EQUAL", subtotal: 120000,
+    participantsCsv: `${an.id},${binh.id}`, resetDebtorsCsv: binh.id, createdAt: 1760000000000,
+  });
+  assert.equal(res.status, 200);
+  assert.equal(Number(res.body.createdAt), 1760000000000);
+  const synced = await an.get("/api/sync");
+  assert.equal(synced.body.debtStatuses.filter((s) => s.billId === created.id).length, 0);
+});

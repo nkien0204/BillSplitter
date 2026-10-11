@@ -21,7 +21,7 @@ before(async () => {
   });
   await new Promise((r) => server.listen(0, "127.0.0.1", r));
   settings.supabase.url = `http://127.0.0.1:${server.address().port}`;
-  settings.supabase.serviceKey = "service-key";
+  settings.supabase.serviceKey = "eyJservice-key";
   settings.supabase.bucket = "chiabill";
 });
 
@@ -36,7 +36,8 @@ test("uploads to the bucket and returns the public URL", async () => {
   const url = await uploadService.save(file, "proof", "7", "http://unused");
   assert.equal(received.method, "POST");
   assert.match(received.url, /^\/storage\/v1\/object\/chiabill\/proof\/7-\d+-[0-9a-f]{8}\.jpg$/);
-  assert.equal(received.headers.authorization, "Bearer service-key");
+  assert.equal(received.headers.authorization, "Bearer eyJservice-key");
+  assert.equal(received.headers.apikey, "eyJservice-key");
   assert.equal(received.headers["content-type"], "image/jpeg");
   assert.deepEqual(received.body, file.buffer);
   assert.equal(url, `${settings.supabase.url}/storage/v1/object/public${received.url.replace("/storage/v1/object", "")}`);

@@ -4,6 +4,7 @@ const Group = require("../models/group.model");
 const Member = require("../models/member.model");
 const DebtStatus = require("../models/debtStatus.model");
 const { v4: uuidv4 } = require("uuid");
+const { Op } = require("sequelize");
 
 class BillService {
   async createBill(userId, billData) {
@@ -31,7 +32,8 @@ class BillService {
       sharesCsv: sharesCsv || "",
       imageUrl: imageUrl || null,
       createdBy: userId,
-      createdAt: Date.now(),
+      // The bill's date as picked in the app (the day it was paid); now if missing.
+      createdAt: Number(billData.createdAt) > 0 ? Number(billData.createdAt) : Date.now(),
       updatedAt: Date.now(),
     });
 
@@ -71,7 +73,20 @@ class BillService {
       "servicePercent", "rounding", "category", "sharesCsv", "imageUrl"];
     const changes = {};
     for (const key of editable) if (updateData[key] !== undefined) changes[key] = updateData[key];
+    if (Number(updateData.createdAt) > 0) changes.createdAt = Number(updateData.createdAt);
     await bill.update({ ...changes, updatedAt: Date.now() });
+
+    // The app computes shares; it names the debtors whose amount (or payer)
+    // changed. Their "paid"/"disputed" status no longer applies. Confirmed stays.
+    const reset = String(updateData.resetDebtorsCsv || "").split(",").map((s) => s.trim()).filter(Boolean);
+    if (reset.length > 0) {
+      await DebtStatus.destroy({
+        where: {
+          debtKey: reset.map((d) => `${bill.id}:${d}`),
+          status: { [Op.ne]: "CONFIRMED" },
+        },
+      });
+    }
 
     // Items only matter for ITEMIZED; switching away drops the old ones.
     if (updateData.mode && updateData.mode !== "ITEMIZED") {

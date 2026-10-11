@@ -1,0 +1,56 @@
+# Chạy mỗi lần push / mở PR: test backend trên Postgres (giống Supabase), test domain,
+# build APK debug và để sẵn file APK trong mục Artifacts của lần chạy.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: chiabill
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/chiabill
+      DATABASE_SSL: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - name: System + unit tests (Postgres)
+        run: npm test
+      - name: Load test
+        run: PERF_SECONDS=5 npm run test:perf
+
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Domain unit tests
+        run: ./gradlew :domain:test
+      - name: Build debug APK
+        run: ./gradlew :app:assembleDebug
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chiabill-debug-apk
+          path: app/build/outputs/apk/debug/*.apk
