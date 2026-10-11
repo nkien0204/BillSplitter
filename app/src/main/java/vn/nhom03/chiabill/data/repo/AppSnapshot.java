@@ -61,11 +61,7 @@ public final class AppSnapshot {
         }
         Map<String, DebtStatus> st = new HashMap<>();
         for (DebtStatusEntity s : statuses) {
-            try {
-                st.put(s.debtKey, DebtStatus.valueOf(s.status));
-            } catch (IllegalArgumentException ignored) {
-                // trạng thái lạ → coi như PENDING
-            }
+            st.put(s.debtKey, Mappers.status(s.status));
         }
         this.inbox = Collections.unmodifiableList(new ArrayList<>(inbox));
         this.ledger = new Ledger(this.allMembers, domainBills, st);

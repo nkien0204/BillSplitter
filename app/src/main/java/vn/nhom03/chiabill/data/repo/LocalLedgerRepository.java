@@ -853,14 +853,7 @@ public final class LocalLedgerRepository implements LedgerRepository {
                 return;
             }
             DebtStatusEntity cur = dao.statusNow(debtKey);
-            DebtStatus from = DebtStatus.PENDING;
-            if (cur != null) {
-                try {
-                    from = DebtStatus.valueOf(cur.status);
-                } catch (IllegalArgumentException ignored) {
-                    // trạng thái lạ trong DB → coi như PENDING, giống AppSnapshot
-                }
-            }
+            DebtStatus from = cur == null ? DebtStatus.PENDING : Mappers.status(cur.status);
             PaymentStateMachine.Role role = PaymentStateMachine.roleOf(
                 actorId,
                 debtorId,

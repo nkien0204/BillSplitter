@@ -14,6 +14,7 @@ import vn.nhom03.chiabill.domain.model.Bill;
 import vn.nhom03.chiabill.domain.model.BillItem;
 import vn.nhom03.chiabill.domain.model.BillSpec;
 import vn.nhom03.chiabill.domain.model.Category;
+import vn.nhom03.chiabill.domain.model.DebtStatus;
 import vn.nhom03.chiabill.domain.model.SplitMode;
 import vn.nhom03.chiabill.domain.qr.PaymentTarget;
 
@@ -66,6 +67,16 @@ public final class Mappers {
     public static SplitMode mode(String s) {
         if (s != null) for (SplitMode m : SplitMode.values()) if (m.name().equals(s)) return m;
         return SplitMode.EQUAL;
+    }
+
+    /**
+     * Tên trạng thái lưu trong DB hoặc nhận từ server. Server cũ ghi "DEBTOR_PAID" cho
+     * bước người nợ báo đã chuyển, nên đọc nó thành MARKED_PAID. Tên lạ trả về PENDING.
+     */
+    public static DebtStatus status(String s) {
+        if ("DEBTOR_PAID".equals(s)) return DebtStatus.MARKED_PAID;
+        if (s != null) for (DebtStatus d : DebtStatus.values()) if (d.name().equals(s)) return d;
+        return DebtStatus.PENDING;
     }
 
     public static Bill toBill(BillEntity e, List<BillItemEntity> items) {
