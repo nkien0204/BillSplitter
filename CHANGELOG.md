@@ -10,6 +10,7 @@
 - Nút "Gửi qua Zalo" mở thẳng Zalo.
 - Icon mới (thích ứng, có lớp đơn sắc cho Android 13+). Nguồn: `docs/icon/`.
 - `POST /api/uploads`, `GET /health`, cột `Bills.imageUrl`, `DebtStatus.proofImageUrl`.
+- Trên Postgres, mọi bảng bật Row Level Security (khoá công khai của Supabase không đọc được dữ liệu).
 
 **Sửa**
 - App và máy chủ dùng chung tên trạng thái `MARKED_PAID` (máy chủ trước đây lưu `DEBTOR_PAID`, app đọc thành "chưa trả"). Migration đổi dữ liệu cũ.

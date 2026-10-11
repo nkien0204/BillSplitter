@@ -26,7 +26,7 @@ Lưu ý của gói miễn phí:
    Ở thẻ **Legacy API keys**, copy khoá **service_role** (bắt đầu bằng `eyJ...`) → `SUPABASE_SERVICE_KEY`.
    Khoá *secret* mới (`sb_secret_...`) cũng dùng được. **Không** đưa khoá này vào app hay lên GitHub.
 
-Không cần tạo bảng bằng tay: máy chủ tự chạy migration mỗi lần khởi động.
+Không cần tạo bảng bằng tay: máy chủ tự chạy migration mỗi lần khởi động. Migration cũng bật Row Level Security cho mọi bảng, nên khoá công khai của Supabase không đọc được dữ liệu qua REST API; máy chủ vẫn đọc ghi bình thường vì nó là chủ các bảng.
 
 ## 2. Render: chạy máy chủ
 
