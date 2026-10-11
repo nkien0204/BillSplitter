@@ -30,6 +30,8 @@ public final class AppSnapshot {
     private final Map<String, BillEntity> billEntities = new HashMap<>();
     private final List<InboxEntity> inbox;
     private final Ledger ledger;
+    /** Ảnh chuyển khoản theo khoản nợ (debtKey). */
+    private final Map<String, String> proofs = new HashMap<>();
 
     AppSnapshot(List<UserEntity> users, List<GroupEntity> groups, List<MemberEntity> members, List<BillEntity> bills,
                 List<BillItemEntity> items, List<DebtStatusEntity> statuses, List<InboxEntity> inbox) {
@@ -62,6 +64,7 @@ public final class AppSnapshot {
         Map<String, DebtStatus> st = new HashMap<>();
         for (DebtStatusEntity s : statuses) {
             st.put(s.debtKey, Mappers.status(s.status));
+            if (s.proofImageUrl != null && !s.proofImageUrl.isEmpty()) proofs.put(s.debtKey, s.proofImageUrl);
         }
         this.inbox = Collections.unmodifiableList(new ArrayList<>(inbox));
         this.ledger = new Ledger(this.allMembers, domainBills, st);
@@ -113,6 +116,15 @@ public final class AppSnapshot {
     }
 
     public BillEntity billEntity(String billId) { return billEntities.get(billId); }
+
+    /** URL ảnh hoá đơn, null nếu không có. */
+    public String billImage(String billId) {
+        BillEntity b = billEntities.get(billId);
+        return b == null || b.imageUrl == null || b.imageUrl.isEmpty() ? null : b.imageUrl;
+    }
+
+    /** URL ảnh chuyển khoản người nợ gửi kèm, null nếu không có. */
+    public String proofOf(String debtKey) { return proofs.get(debtKey); }
 
     public List<InboxEntity> inboxOf(String userId) {
         List<InboxEntity> out = new ArrayList<>();

@@ -36,6 +36,7 @@ public class DebtsFragment extends BaseFragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle state) {
         b = FragmentDebtsBinding.inflate(inflater, container, false);
+        bindRefresh(b.refresh);
         b.oweList.setLayoutManager(new LinearLayoutManager(requireContext()));
         b.oweList.setAdapter(owe);
         b.owedList.setLayoutManager(new LinearLayoutManager(requireContext()));

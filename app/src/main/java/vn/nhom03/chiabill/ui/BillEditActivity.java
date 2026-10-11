@@ -1,7 +1,9 @@
 package vn.nhom03.chiabill.ui;
 
+import android.Manifest;
 import android.app.DatePickerDialog;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -9,12 +11,18 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.EditText;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.PickVisualMediaRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.core.content.FileProvider;
 import androidx.lifecycle.ViewModelProvider;
 
-import com.google.android.material.button.MaterialButtonToggleGroup;
 import com.google.android.material.chip.Chip;
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.chip.ChipGroup;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
@@ -35,10 +43,13 @@ import vn.nhom03.chiabill.domain.model.Money;
 import vn.nhom03.chiabill.domain.model.ShareLine;
 import vn.nhom03.chiabill.domain.model.SplitMode;
 import vn.nhom03.chiabill.domain.model.SplitResult;
+import vn.nhom03.chiabill.domain.receipt.ReceiptParser;
 import vn.nhom03.chiabill.domain.split.SplitEngine;
 import vn.nhom03.chiabill.ui.bill.BillDraft;
 import vn.nhom03.chiabill.ui.bill.BillEditViewModel;
 import vn.nhom03.chiabill.util.Nav;
+import vn.nhom03.chiabill.util.Photos;
+import vn.nhom03.chiabill.util.ReceiptScanner;
 import vn.nhom03.chiabill.util.Ui;
 
 /**
@@ -51,6 +62,25 @@ import vn.nhom03.chiabill.util.Ui;
  */
 public class BillEditActivity extends BaseActivity {
     private static final long MAX_AMOUNT = 999_999_999L;
+
+    /** Ảnh chụp bằng camera ghi tạm vào đây (cache/shared, đã khai trong file_paths.xml). */
+    private Uri cameraUri;
+
+    private final ActivityResultLauncher<Uri> takePhoto =
+            registerForActivityResult(new ActivityResultContracts.TakePicture(), ok -> {
+                if (Boolean.TRUE.equals(ok) && cameraUri != null) onReceiptImage(cameraUri);
+            });
+
+    private final ActivityResultLauncher<PickVisualMediaRequest> pickPhoto =
+            registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
+                if (uri != null) onReceiptImage(uri);
+            });
+
+    private final ActivityResultLauncher<String> cameraPermission =
+            registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+                if (granted) launchCamera();
+                else toast("Không có quyền camera. Chọn ảnh hoá đơn có sẵn trong máy thay thế.");
+            });
 
     private ActivityBillEditBinding b;
     private BillEditViewModel vm;
@@ -90,6 +120,7 @@ public class BillEditActivity extends BaseActivity {
                     return;
                 }
                 vm.draft = BillDraft.from(bill);
+                vm.draft.imageUrl = be.imageUrl;
             } else {
                 vm.draft = BillDraft.create(groupId, me(), s.membersOf(groupId));
             }
@@ -121,6 +152,17 @@ public class BillEditActivity extends BaseActivity {
         }
         showDate();
         b.date.setOnClickListener(v -> pickDate());
+        b.showMore.setOnClickListener(v -> {
+            b.moreSection.setVisibility(View.VISIBLE);
+            b.showMore.setVisibility(View.GONE);
+        });
+        b.scanReceipt.setOnClickListener(v -> chooseReceiptSource());
+        b.removePhoto.setOnClickListener(v -> {
+            d.imageUrl = null;
+            vm.thumb = null;
+            showPhoto(null);
+        });
+        showPhoto(vm.uploading ? "Đang gửi ảnh…" : null);
 
         for (String id : members) {
             Chip c = chip(b.payers, s(id), true);
@@ -130,6 +172,8 @@ public class BillEditActivity extends BaseActivity {
             });
         }
 
+        // Theo % chỉ còn cho hoá đơn cũ đã chia theo %, để sửa được mà không đổi cách chia.
+        b.modePercent.setVisibility(d.mode == SplitMode.PERCENT ? View.VISIBLE : View.GONE);
         b.mode.check(modeButton(d.mode));
         b.mode.addOnButtonCheckedListener((g, id, checked) -> {
             if (!checked) return;
@@ -137,11 +181,8 @@ public class BillEditActivity extends BaseActivity {
                     : id == R.id.modeCustom ? SplitMode.CUSTOM
                     : id == R.id.modePercent ? SplitMode.PERCENT : SplitMode.EQUAL;
             if (d.mode == SplitMode.PERCENT && d.percent.isEmpty()) prefillPercent();
-            if (d.mode == SplitMode.CUSTOM && d.rounding != 1) {
-                // Số tiền tự nhập phải giữ nguyên từng đồng: bỏ làm tròn 1.000đ
-                d.rounding = 1;
-                b.rounding.check(R.id.round1);
-            }
+            // Số tiền tự nhập phải giữ nguyên từng đồng (hoá đơn cũ có thể đang làm tròn 1.000đ)
+            if (d.mode == SplitMode.CUSTOM) d.rounding = 1;
             showModeSection();
             renderPreview();
         });
@@ -164,9 +205,8 @@ public class BillEditActivity extends BaseActivity {
             renderPreview();
         });
 
-        bindPercent(b.vat, d.vat, new int[]{R.id.vat0, R.id.vat8, R.id.vat10}, new int[]{0, 8, 10}, v -> d.vat = v);
-        bindPercent(b.service, d.service, new int[]{R.id.svc0, R.id.svc5, R.id.svc10}, new int[]{0, 5, 10}, v -> d.service = v);
-        bindPercent(b.rounding, (int) d.rounding, new int[]{R.id.round1, R.id.round1000}, new int[]{1, 1000}, v -> d.rounding = v);
+        // v0.4.0 bỏ VAT, phí phục vụ, làm tròn khỏi form: người dùng nhập đúng số tiền trên hoá đơn.
+        // Hoá đơn cũ có VAT vẫn giữ nguyên giá trị (nằm trong bản nháp) nên sửa không làm đổi phần từng người.
 
         b.save.setOnClickListener(v -> save());
     }
@@ -190,9 +230,9 @@ public class BillEditActivity extends BaseActivity {
         if (shares) rebuildShares();
         switch (m) {
             case ITEMIZED: b.modeHint.setText("Mỗi món chia đều cho những người dùng món đó."); break;
-            case CUSTOM: b.modeHint.setText("Nhập số tiền của từng người. Tạm tính = tổng các số này; VAT và phí chia theo tỉ lệ."); break;
+            case CUSTOM: b.modeHint.setText("Nhập số tiền của từng người. Tổng hoá đơn là tổng các số này."); break;
             case PERCENT: b.modeHint.setText("Nhập phần trăm của từng người, tổng phải đúng 100%. Để trống = 0%."); break;
-            default: b.modeHint.setText("Tạm tính chia đều cho những người được chọn."); break;
+            default: b.modeHint.setText("Tổng tiền chia đều cho những người được chọn."); break;
         }
     }
 
@@ -308,7 +348,8 @@ public class BillEditActivity extends BaseActivity {
         String invalid = SplitEngine.check(spec, order);
 
         b.previewTotal.setText(Money.format(r.getTotal()));
-        StringBuilder calc = new StringBuilder("Tạm tính " + Money.format(r.getSubtotal()));
+        StringBuilder calc = new StringBuilder((r.getVat() > 0 || r.getService() > 0 ? "Tạm tính " : "Tổng hoá đơn ")
+                + Money.format(r.getSubtotal()));
         if (r.getVat() > 0) calc.append(" · VAT ").append(Money.format(r.getVat()));
         if (r.getService() > 0) calc.append(" · phí ").append(Money.format(r.getService()));
         b.previewCalc.setText(calc);
@@ -330,7 +371,7 @@ public class BillEditActivity extends BaseActivity {
         }
 
         if (d.mode == SplitMode.CUSTOM) {
-            b.sharesSum.setText("Tạm tính " + Money.format(r.getSubtotal()));
+            b.sharesSum.setText("Tổng " + Money.format(r.getSubtotal()));
             b.sharesSum.setTextColor(Ui.col(this, R.color.muted));
         } else if (d.mode == SplitMode.PERCENT) {
             long sum = 0;
@@ -352,13 +393,14 @@ public class BillEditActivity extends BaseActivity {
             b.previewCheck.setText("✓ Tổng các phần " + Money.format(r.sumOfShares()) + " khớp tổng hoá đơn");
             b.previewCheck.setTextColor(Ui.col(this, R.color.brand_on_dark));
         }
-        b.save.setEnabled(invalid == null && r.isSavable());
+        b.save.setEnabled(invalid == null && r.isSavable() && !vm.uploading);
+        b.save.setText(vm.uploading ? "Đang gửi ảnh…" : "Lưu và báo cho nhóm");
     }
 
     private void save() {
         BillDraft d = vm.draft;
         b.save.setEnabled(false);
-        repo().saveBill(new BillInput(d.id, d.groupId, d.title, d.toSpec(), d.category, d.date), me(), id -> {
+        repo().saveBill(new BillInput(d.id, d.groupId, d.title, d.toSpec(), d.category, d.date, d.imageUrl), me(), id -> {
             toast(d.id == null ? "Đã lưu và báo cho những người cần trả." : "Đã cập nhật hoá đơn.");
             if (d.id == null) startActivity(new Intent(this, BillDetailActivity.class).putExtra(Nav.BILL_ID, id));
             finish();
@@ -366,6 +408,140 @@ public class BillEditActivity extends BaseActivity {
             toast(err);
             b.save.setEnabled(true);
         });
+    }
+
+    // ------------------------------------------------------------------ chụp hoá đơn
+
+    private void chooseReceiptSource() {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Ảnh hoá đơn")
+                .setItems(new String[]{"Chụp ảnh", "Chọn ảnh có sẵn"}, (dlg, which) -> {
+                    if (which == 0) cameraPermission.launch(Manifest.permission.CAMERA);
+                    else pickPhoto.launch(new PickVisualMediaRequest.Builder()
+                            .setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE).build());
+                })
+                .show();
+    }
+
+    private void launchCamera() {
+        try {
+            File dir = new File(getCacheDir(), "shared");
+            if (!dir.exists() && !dir.mkdirs()) throw new IllegalStateException("cache");
+            File f = new File(dir, "receipt-" + System.currentTimeMillis() + ".jpg");
+            cameraUri = FileProvider.getUriForFile(this, getPackageName() + ".fileprovider", f);
+            takePhoto.launch(cameraUri);
+        } catch (Exception e) {
+            toast("Không mở được camera. Chọn ảnh có sẵn thay thế.");
+        }
+    }
+
+    /**
+     * Có ảnh: (1) đọc chữ bằng ML Kit để điền tên quán và tổng tiền, (2) song song nén ảnh và
+     * gửi lên máy chủ để đính kèm vào hoá đơn. Người dùng vẫn xem lại và sửa trước khi lưu.
+     */
+    private void onReceiptImage(Uri uri) {
+        b.scanReceipt.setEnabled(false);
+        b.scanReceipt.setText("Đang đọc hoá đơn…");
+        ReceiptScanner.scan(this, uri, new ReceiptScanner.Listener() {
+            @Override public void onResult(ReceiptParser.Result result) {
+                if (isFinishing() || isDestroyed()) return;
+                resetScanButton();
+                applyReceipt(result);
+            }
+            @Override public void onError(String message) {
+                if (isFinishing() || isDestroyed()) return;
+                resetScanButton();
+                toast(message);
+            }
+        });
+        uploadPhoto(uri);
+    }
+
+    private void resetScanButton() {
+        b.scanReceipt.setEnabled(true);
+        b.scanReceipt.setText("📷  Chụp lại hoá đơn");
+    }
+
+    private void applyReceipt(ReceiptParser.Result r) {
+        BillDraft d = vm.draft;
+        if (r.total <= 0) {
+            toast("Không thấy tổng tiền trên ảnh. Nhập tay giúp mình nhé, ảnh vẫn được đính kèm.");
+            return;
+        }
+        if (d.title.trim().isEmpty() && !r.title.isEmpty()) b.title.setText(r.title);
+        if (d.mode != SplitMode.EQUAL) b.mode.check(R.id.modeEqual);
+        b.subtotal.setText(Money.dots(Math.min(r.total, MAX_AMOUNT))); // watcher cập nhật bản nháp + xem trước
+        String found = "Đọc được tổng " + Money.format(r.total) + (r.totalFromKeyword ? "" : " (số lớn nhất trên ảnh)")
+                + ". Kiểm tra lại trước khi lưu.";
+        if (r.itemsMatchTotal && r.items.size() >= 2) {
+            Snackbar.make(b.getRoot(), found + " Có " + r.items.size() + " món.", Snackbar.LENGTH_LONG)
+                    .setAction("Chia theo món", v -> useItems(r.items))
+                    .show();
+        } else {
+            toast(found);
+        }
+    }
+
+    /** Điền các món đọc được; người dùng chỉ còn chọn ai dùng món nào. */
+    private void useItems(List<ReceiptParser.Item> found) {
+        BillDraft d = vm.draft;
+        d.items.clear();
+        for (ReceiptParser.Item it : found) {
+            BillDraft.Item i = new BillDraft.Item();
+            i.name = it.name;
+            i.price = it.price;
+            d.items.add(i);
+        }
+        b.mode.check(R.id.modeItems);
+        rebuildItems();
+        renderPreview();
+    }
+
+    private void uploadPhoto(Uri uri) {
+        vm.uploading = true;
+        showPhoto("Đang gửi ảnh…");
+        renderPreview();
+        new Thread(() -> {
+            byte[] jpeg;
+            try {
+                jpeg = Photos.compress(getContentResolver(), uri);
+            } catch (Exception e) {
+                runOnUiThread(() -> photoFailed("Không đọc được ảnh."));
+                return;
+            }
+            android.graphics.Bitmap thumb = Photos.thumbnail(jpeg, Ui.dp(this, 112));
+            runOnUiThread(() -> {
+                vm.thumb = thumb;
+                repo().uploadImage(jpeg, "bill", url -> {
+                    vm.uploading = false;
+                    if (vm.draft != null) vm.draft.imageUrl = url;
+                    if (isFinishing() || isDestroyed()) return;
+                    showPhoto(null);
+                    renderPreview();
+                }, this::photoFailed);
+            });
+        }).start();
+    }
+
+    private void photoFailed(String message) {
+        vm.uploading = false;
+        vm.thumb = null;
+        if (isFinishing() || isDestroyed()) return;
+        showPhoto(null);
+        renderPreview();
+        toast(message + " Hoá đơn vẫn lưu được, chỉ không kèm ảnh.");
+    }
+
+    /** Dòng ảnh hoá đơn: ảnh nhỏ + trạng thái. status null = hiện theo bản nháp. */
+    private void showPhoto(String status) {
+        BillDraft d = vm.draft;
+        boolean has = vm.uploading || (d != null && d.imageUrl != null);
+        b.receiptBox.setVisibility(has ? View.VISIBLE : View.GONE);
+        if (!has) return;
+        if (vm.thumb != null) b.receiptPhoto.setImageBitmap(vm.thumb);
+        else vn.nhom03.chiabill.util.RemoteImage.load(b.receiptPhoto, d.imageUrl, Ui.dp(this, 112));
+        b.receiptStatus.setText(status != null ? status : "Đã đính kèm ảnh hoá đơn. Cả nhóm xem được.");
+        b.removePhoto.setVisibility(vm.uploading ? View.GONE : View.VISIBLE);
     }
 
     // ------------------------------------------------------------------ tiện ích
@@ -385,7 +561,6 @@ public class BillEditActivity extends BaseActivity {
     }
 
     private interface LongSink { void set(long v); }
-    private interface IntSink { void set(int v); }
     private interface TextSink { void set(String t); }
 
     /** Ô tiền: chỉ nhận số, tự chèn dấu chấm hàng nghìn, cập nhật bản nháp và bảng xem trước. */
@@ -408,16 +583,6 @@ public class BillEditActivity extends BaseActivity {
                 sink.set(v);
                 renderPreview();
             }
-        });
-    }
-
-    private void bindPercent(MaterialButtonToggleGroup group, int current, int[] ids, int[] values, IntSink sink) {
-        for (int i = 0; i < ids.length; i++) if (values[i] == current) group.check(ids[i]);
-        if (group.getCheckedButtonId() == View.NO_ID) group.check(ids[0]);
-        group.addOnButtonCheckedListener((g, id, checked) -> {
-            if (!checked) return;
-            for (int i = 0; i < ids.length; i++) if (ids[i] == id) sink.set(values[i]);
-            renderPreview();
         });
     }
 

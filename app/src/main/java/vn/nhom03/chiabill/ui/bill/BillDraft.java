@@ -32,7 +32,10 @@ public final class BillDraft {
     public final List<Item> items = new ArrayList<>();
     public int vat;
     public int service;
-    public long rounding = 1000;
+    /** v0.4.0: không làm tròn nữa, phần từng người đúng tới từng đồng (hoá đơn cũ giữ giá trị của nó). */
+    public long rounding = 1;
+    /** URL ảnh hoá đơn đã tải lên, null nếu không có. */
+    public String imageUrl;
     public Category category = Category.AN_UONG;
     /** Ngày chi, epoch ms. */
     public long date = System.currentTimeMillis();

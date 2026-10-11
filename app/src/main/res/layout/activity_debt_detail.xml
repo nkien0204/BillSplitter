@@ -264,7 +264,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginStart="6dp"
                         android:layout_weight="1"
-                        android:text="Gửi QR qua…" />
+                        android:text="Gửi qua Zalo" />
                 </LinearLayout>
 
                 <com.google.android.material.button.MaterialButton
@@ -274,7 +274,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:backgroundTint="@color/ink"
-                    android:text="Đã nhận (tiền mặt)"
+                    android:text="Đã nhận tiền"
                     android:textColor="@color/paper" />
             </LinearLayout>
 
@@ -291,27 +291,30 @@
                 android:textStyle="bold"
                 android:visibility="gone" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/togglePayload"
-                style="@style/Widget.Material3.Button.TextButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:text="Xem chuỗi VietQR (chi tiết kỹ thuật)"
-                android:textColor="@color/muted" />
-
-            <TextView
-                android:id="@+id/payload"
+            <LinearLayout
+                android:id="@+id/proofBox"
+                style="@style/Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:background="@drawable/bg_code"
-                android:fontFamily="monospace"
-                android:lineSpacingMultiplier="1.3"
-                android:padding="12dp"
-                android:textColor="@color/brand_on_dark"
-                android:textIsSelectable="true"
-                android:textSize="11sp"
-                android:visibility="gone" />
+                android:layout_marginTop="16dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Ảnh chuyển khoản"
+                    android:textColor="@color/ink"
+                    android:textStyle="bold" />
+
+                <ImageView
+                    android:id="@+id/proofPhoto"
+                    android:layout_width="match_parent"
+                    android:layout_height="220dp"
+                    android:layout_marginTop="8dp"
+                    android:contentDescription="Ảnh chuyển khoản, chạm để xem lớn"
+                    android:scaleType="fitCenter" />
+            </LinearLayout>
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 </LinearLayout>

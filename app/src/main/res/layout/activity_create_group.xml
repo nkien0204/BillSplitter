@@ -91,13 +91,16 @@
                 style="@style/Text.Section"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Thành viên khách (chưa cài app)" />
+                android:text="Thành viên khách (chưa cài app)"
+                android:visibility="gone" />
 
+            <!-- v0.4.0: khách chưa có tài khoản không đồng bộ được qua máy chủ, nên ẩn phần này. -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
-                android:orientation="horizontal">
+                android:orientation="horizontal"
+                android:visibility="gone">
 
                 <com.google.android.material.textfield.TextInputLayout
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
@@ -127,13 +130,14 @@
                 android:id="@+id/guests"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp" />
+                android:layout_marginTop="8dp"
+                android:visibility="gone" />
 
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
-                android:text="Khách không đăng nhập được. Khi khách nợ, bạn gửi QR cho họ qua Zalo/Messenger."
+                android:text="Bạn bè cần cài ChiaBill và đăng ký bằng số điện thoại để cùng thấy hoá đơn. Có thể mời bằng mã nhóm sau khi tạo."
                 android:textColor="@color/muted"
                 android:textSize="12sp" />
         </LinearLayout>

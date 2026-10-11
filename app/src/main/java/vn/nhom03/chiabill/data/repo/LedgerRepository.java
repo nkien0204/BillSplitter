@@ -143,4 +143,21 @@ public interface LedgerRepository {
         String billId,
         String debtKey
     );
+
+    // ---- v0.4.0: nhiều máy dùng chung máy chủ. Bản offline giữ hành vi cũ qua default. ----
+
+    /** Lấy toàn bộ dữ liệu mới nhất của tài khoản từ máy chủ. done/onError có thể null. */
+    default void syncAll(Runnable done, Callback<String> onError) {
+        if (done != null) done.run();
+    }
+
+    /** Gửi một ảnh JPEG lên máy chủ và trả về URL. kind: "bill" (ảnh hoá đơn) hoặc "proof" (ảnh chuyển khoản). */
+    default void uploadImage(byte[] jpeg, String kind, Callback<String> onUrl, Callback<String> onError) {
+        if (onError != null) onError.onResult("Cần kết nối máy chủ để gửi ảnh.");
+    }
+
+    /** "Tôi đã chuyển", kèm URL ảnh chuyển khoản (có thể null). */
+    default void markPaid(String debtKey, String actorId, String proofImageUrl, Runnable done, Callback<String> onError) {
+        applyDebtAction(debtKey, vn.nhom03.chiabill.domain.ledger.PaymentStateMachine.Action.MARK_PAID, actorId, done, onError);
+    }
 }

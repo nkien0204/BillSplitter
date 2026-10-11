@@ -57,55 +57,6 @@
                     android:text="Quét camera" />
             </LinearLayout>
 
-            <TextView
-                style="@style/Text.Section"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="Hoặc dán chuỗi QR" />
-
-            <EditText
-                android:id="@+id/paste"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_card"
-                android:fontFamily="monospace"
-                android:gravity="top"
-                android:hint="000201010211…"
-                android:importantForAutofill="no"
-                android:inputType="textMultiLine|textNoSuggestions"
-                android:minLines="3"
-                android:padding="12dp"
-                android:textSize="12sp" />
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:orientation="horizontal">
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/parse"
-                    style="@style/Button.Secondary"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Đọc chuỗi" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/sampleOk"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Mẫu đúng" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/sampleBad"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Mẫu hỏng CRC" />
-            </LinearLayout>
-
             <LinearLayout
                 android:id="@+id/resultOk"
                 android:layout_width="match_parent"
@@ -154,17 +105,21 @@
                 android:textColor="@color/err_fg"
                 android:visibility="gone" />
 
-            <TextView
-                style="@style/Text.Section"
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/showManual"
+                style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Hoặc nhập tay" />
+                android:layout_marginTop="12dp"
+                android:text="Cách khác: nhập số tài khoản" />
 
             <LinearLayout
+                android:id="@+id/manualSection"
                 style="@style/Card"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:visibility="gone">
 
                 <Spinner
                     android:id="@+id/bank"
@@ -198,15 +153,6 @@
                     android:layout_marginTop="8dp"
                     android:text="Lưu" />
             </LinearLayout>
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:lineSpacingMultiplier="1.2"
-                android:text="Muốn thử thật: khai STK của bạn, đổi sang tài khoản đang nợ bạn, mở khoản nợ rồi quét QR bằng app ngân hàng. Chỉ cần đi tới màn xác nhận, không cần chuyển."
-                android:textColor="@color/muted"
-                android:textSize="12sp" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/remove"

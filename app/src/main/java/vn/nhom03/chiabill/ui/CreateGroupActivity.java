@@ -69,7 +69,7 @@ public class CreateGroupActivity extends BaseActivity {
         found = null;
         repo().findUserByPhone(raw, u -> {
             if (u == null) {
-                b.phoneLayout.setError("Chưa có tài khoản nào dùng số này. Có thể thêm người đó làm khách ở dưới.");
+                b.phoneLayout.setError("Chưa có tài khoản nào dùng số này. Người đó cần cài ChiaBill và đăng ký bằng số này trước.");
                 return;
             }
             if (u.id.equals(me())) {

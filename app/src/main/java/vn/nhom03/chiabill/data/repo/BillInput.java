@@ -12,8 +12,16 @@ public final class BillInput {
     public final Category category;
     /** Ngày chi (epoch ms). 0 = hôm nay. */
     public final long date;
+    /** URL ảnh hoá đơn đã tải lên, null nếu không có. */
+    public final String imageUrl;
 
     public BillInput(String id, String groupId, String title, BillSpec spec, Category category, long date) {
+        this(id, groupId, title, spec, category, date, null);
+    }
+
+    public BillInput(String id, String groupId, String title, BillSpec spec, Category category, long date,
+                     String imageUrl) {
+        this.imageUrl = imageUrl;
         this.id = id;
         this.groupId = groupId;
         this.title = title;

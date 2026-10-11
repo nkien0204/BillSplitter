@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Android 13+ "themed icons": cùng hình, một màu, hệ thống tự tô theo hình nền -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="1.12"
+        android:scaleY="1.12">
+        <path
+            android:fillColor="#FF000000"
+            android:fillType="evenOdd"
+            android:pathData="M33,30H52V76l-3.17,-3 -3.17,3 -3.17,-3 -3.16,3 -3.17,-3 -3.16,3ZM37,38v3h11v-3zM37,45v3h11v-3zM37,52v3h7v-3z" />
+        <path
+            android:fillColor="#FF000000"
+            android:fillType="evenOdd"
+            android:pathData="M56,35H75V58.6A12.3,12.3 0,0 0,58.6 75H56ZM60,43v3h11v-3zM60,50v3h11v-3z" />
+        <path
+            android:fillColor="#FF000000"
+            android:pathData="M68,59a11,11 0,1 1,0 22a11,11 0,1 1,0 -22z" />
+    </group>
+</vector>

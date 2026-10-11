@@ -25,8 +25,50 @@
             android:orientation="vertical"
             android:padding="16dp">
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/scanReceipt"
+                style="@style/Button.Secondary"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="📷  Chụp hoá đơn để điền tự động" />
+
+            <LinearLayout
+                android:id="@+id/receiptBox"
+                style="@style/Card"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/receiptPhoto"
+                    android:layout_width="56dp"
+                    android:layout_height="56dp"
+                    android:contentDescription="Ảnh hoá đơn"
+                    android:scaleType="centerCrop" />
+
+                <TextView
+                    android:id="@+id/receiptStatus"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:textColor="@color/ink"
+                    android:textSize="13sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/removePhoto"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Bỏ ảnh" />
+            </LinearLayout>
+
             <com.google.android.material.textfield.TextInputLayout
                 style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_marginTop="12dp"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:hint="Tên hoá đơn (vd: Lẩu nướng tối thứ Bảy)">
@@ -37,35 +79,6 @@
                     android:layout_height="wrap_content"
                     android:inputType="textCapSentences" />
             </com.google.android.material.textfield.TextInputLayout>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
-
-                <TextView
-                    style="@style/Text.Section"
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_weight="1"
-                    android:text="Danh mục" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/date"
-                    style="@style/Widget.Material3.Button.TextButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:contentDescription="Chọn ngày chi" />
-            </LinearLayout>
-
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/categories"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:selectionRequired="true"
-                app:singleSelection="true" />
 
             <TextView
                 style="@style/Text.Section"
@@ -110,15 +123,17 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Số tiền" />
+                    android:text="Tuỳ chỉnh" />
 
+                <!-- Chỉ hiện khi sửa hoá đơn cũ chia theo % (v0.4.0 bỏ kiểu chia này khỏi hoá đơn mới) -->
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/modePercent"
                     style="@style/Widget.Material3.Button.OutlinedButton"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="Theo %" />
+                    android:text="Theo %"
+                    android:visibility="gone" />
             </com.google.android.material.button.MaterialButtonToggleGroup>
 
             <TextView
@@ -135,7 +150,7 @@
                     android:layout_marginTop="16dp"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="Tạm tính (chưa VAT, phí)"
+                    android:hint="Tổng tiền hoá đơn"
                     app:suffixText="đ">
 
                     <com.google.android.material.textfield.TextInputEditText
@@ -214,123 +229,49 @@
                     android:text="+ Thêm món" />
             </LinearLayout>
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/showMore"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="+ Danh mục, ngày chi" />
+
             <LinearLayout
-                style="@style/Card"
+                android:id="@+id/moreSection"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:orientation="vertical">
+                android:orientation="vertical"
+                android:visibility="gone">
 
-                <TextView
-                    android:layout_width="wrap_content"
+                <LinearLayout
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="VAT"
-                    android:textColor="@color/ink"
-                    android:textStyle="bold" />
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
 
-                <com.google.android.material.button.MaterialButtonToggleGroup
-                    android:id="@+id/vat"
+                    <TextView
+                        style="@style/Text.Section"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Danh mục" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/date"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:contentDescription="Chọn ngày chi" />
+                </LinearLayout>
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/categories"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     app:selectionRequired="true"
-                    app:singleSelection="true">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/vat0"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="0%" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/vat8"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="8%" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/vat10"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="10%" />
-                </com.google.android.material.button.MaterialButtonToggleGroup>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:text="Phí phục vụ"
-                    android:textColor="@color/ink"
-                    android:textStyle="bold" />
-
-                <com.google.android.material.button.MaterialButtonToggleGroup
-                    android:id="@+id/service"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:selectionRequired="true"
-                    app:singleSelection="true">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/svc0"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="0%" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/svc5"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="5%" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/svc10"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="10%" />
-                </com.google.android.material.button.MaterialButtonToggleGroup>
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:text="Làm tròn phần người nợ"
-                    android:textColor="@color/ink"
-                    android:textStyle="bold" />
-
-                <com.google.android.material.button.MaterialButtonToggleGroup
-                    android:id="@+id/rounding"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    app:selectionRequired="true"
-                    app:singleSelection="true">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/round1"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Tới 1đ" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/round1000"
-                        style="@style/Widget.Material3.Button.OutlinedButton"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:text="Tới 1.000đ" />
-                </com.google.android.material.button.MaterialButtonToggleGroup>
+                    app:singleSelection="true" />
             </LinearLayout>
 
             <LinearLayout

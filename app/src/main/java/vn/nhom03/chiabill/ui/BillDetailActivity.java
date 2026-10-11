@@ -62,6 +62,12 @@ public class BillDetailActivity extends BaseActivity {
         Ui.avatar(b.payerAvatar, s.name(bill.getPayerId()), s.colorIndex(bill.getPayerId()));
         b.payerLine.setText((bill.getPayerId().equals(me) ? "Bạn" : s.name(bill.getPayerId())) + " đã trả");
         b.total.setText(Money.format(r.getTotal()));
+        String photo = s.billImage(bill.getId());
+        b.billPhoto.setVisibility(photo == null ? View.GONE : View.VISIBLE);
+        if (photo != null) {
+            vn.nhom03.chiabill.util.RemoteImage.load(b.billPhoto, photo, Ui.dp(this, 720));
+            b.billPhoto.setOnClickListener(v -> openUrl(photo));
+        }
 
         StringBuilder calc = new StringBuilder();
         calc.append("Tạm tính ").append(Money.format(r.getSubtotal()));
@@ -121,5 +127,14 @@ public class BillDetailActivity extends BaseActivity {
                 .setPositiveButton("Xoá", (dlg, w) -> repo().deleteBill(billId, me, this::finish, this::toast))
                 .setNegativeButton("Huỷ", null)
                 .show());
+    }
+
+    /** Mở ảnh gốc bằng trình xem ảnh / trình duyệt của máy. */
+    private void openUrl(String url) {
+        try {
+            startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url)));
+        } catch (Exception e) {
+            toast("Không mở được ảnh.");
+        }
     }
 }

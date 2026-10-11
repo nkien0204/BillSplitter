@@ -30,8 +30,9 @@ import vn.nhom03.chiabill.domain.qr.VietQrCodec;
 import vn.nhom03.chiabill.util.QrImages;
 
 /**
- * Khai QR nhận tiền: chọn ảnh chụp màn hình QR (Photo Picker, không cần quyền), quét camera,
- * dán chuỗi, hoặc nhập tay. Mọi đường đều đi qua VietQrCodec.parse (kiểm CRC) trước khi lưu.
+ * Khai QR nhận tiền: chọn ảnh chụp màn hình QR (Photo Picker, không cần quyền) hoặc quét camera.
+ * Nhập tay số tài khoản là cách dự phòng, ẩn sau nút "Cách khác". QR đều đi qua VietQrCodec.parse
+ * (kiểm CRC) trước khi lưu.
  */
 public class QrSetupActivity extends BaseActivity {
     private ActivityQrSetupBinding b;
@@ -72,17 +73,9 @@ public class QrSetupActivity extends BaseActivity {
                 .setPrompt("Đưa mã QR nhận tiền vào khung")
                 .setBeepEnabled(false)
                 .setOrientationLocked(false)));
-        b.parse.setOnClickListener(v -> handleRaw(b.paste.getText().toString()));
-        b.sampleOk.setOnClickListener(v -> {
-            String p = VietQrCodec.encode(new PaymentTarget("970422", "0987654321", "NGUYEN VAN A"), 0, "");
-            b.paste.setText(p);
-            handleRaw(p);
-        });
-        b.sampleBad.setOnClickListener(v -> {
-            String p = VietQrCodec.encode(new PaymentTarget("970422", "0987654321", ""), 0, "");
-            p = p.substring(0, p.length() - 1) + (p.endsWith("A") ? "B" : "A");
-            b.paste.setText(p);
-            handleRaw(p);
+        b.showManual.setOnClickListener(v -> {
+            b.manualSection.setVisibility(View.VISIBLE);
+            b.showManual.setVisibility(View.GONE);
         });
         b.useResult.setOnClickListener(v -> {
             if (pending != null) save(pending);
@@ -113,6 +106,11 @@ public class QrSetupActivity extends BaseActivity {
             b.accountNo.setText(u.accountNo);
             b.accountName.setText(u.accountName);
         }
+        // Tài khoản đã khai bằng tay thì mở sẵn phần nhập tay để sửa.
+        if (u.hasPaymentProfile()) {
+            b.manualSection.setVisibility(View.VISIBLE);
+            b.showManual.setVisibility(View.GONE);
+        }
     }
 
     private void onImagePicked(Uri uri) {
@@ -132,7 +130,6 @@ public class QrSetupActivity extends BaseActivity {
                 if (result == null) {
                     showError("Không tìm thấy mã QR trong ảnh. Thử ảnh chụp màn hình rõ nét, chỉ có mã QR.");
                 } else {
-                    b.paste.setText(result);
                     handleRaw(result);
                 }
             });

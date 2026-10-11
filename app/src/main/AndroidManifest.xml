@@ -6,7 +6,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Kết nối Server (Phase 2) -->
     <uses-permission android:name="android.permission.INTERNET" />
-    <!-- Quét QR bằng camera: thư viện quét tự xin khi mở máy quét -->
+    <!-- Quét QR bằng camera (thư viện quét tự xin) và chụp ảnh hoá đơn (xin trước khi mở camera) -->
     <uses-permission android:name="android.permission.CAMERA" />
     <!-- Lưu ảnh QR trên Android 8–9; Android 10+ dùng MediaStore, không cần quyền -->
     <uses-permission
@@ -14,6 +14,11 @@
         android:maxSdkVersion="28" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Android 11+: được hỏi Zalo có cài không, để nút "Gửi qua Zalo" mở thẳng Zalo -->
+    <queries>
+        <package android:name="com.zing.zalo" />
+    </queries>
 
     <application
         android:name=".ChiaBillApp"

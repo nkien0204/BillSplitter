@@ -18,10 +18,14 @@ public class NetworkClient {
         if (retrofit == null) {
             SessionManager session = new SessionManager(context);
             HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
-            logging.setLevel(HttpLoggingInterceptor.Level.BODY);
+            // BODY would print passwords to logcat; headers only, and only in debug builds.
+            logging.setLevel(vn.nhom03.chiabill.BuildConfig.DEBUG ? HttpLoggingInterceptor.Level.BASIC : HttpLoggingInterceptor.Level.NONE);
 
             // logout and /me need the stored token; login/register simply have none yet.
+            // Long timeouts: the free server sleeps and the first call can take 30–60 s.
             OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
                 .addInterceptor(logging)
                 .addInterceptor(chain -> {
                     Request original = chain.request();

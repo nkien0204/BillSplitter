@@ -39,6 +39,7 @@ public class GroupsFragment extends BaseFragment {
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, @Nullable ViewGroup container, @Nullable Bundle state) {
         b = FragmentGroupsBinding.inflate(inflater, container, false);
+        bindRefresh(b.refresh);
         b.list.setLayoutManager(new LinearLayoutManager(requireContext()));
         b.list.setAdapter(adapter);
         b.createGroup.setOnClickListener(v -> startActivity(new Intent(requireContext(), CreateGroupActivity.class)));

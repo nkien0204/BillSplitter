@@ -153,6 +153,45 @@ public abstract class AppDao {
         deleteBillRow(billId);
     }
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    public abstract void upsertUsers(List<UserEntity> u);
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    public abstract void upsertGroups(List<GroupEntity> g);
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    public abstract void upsertBills(List<BillEntity> b);
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    public abstract void upsertStatuses(List<DebtStatusEntity> s);
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    public abstract void upsertInbox(List<InboxEntity> e);
+
+    /**
+     * Thay toàn bộ dữ liệu trên máy bằng bản máy chủ gửi về (đồng bộ nhiều máy). Một giao dịch,
+     * nên màn hình chỉ nhận một lần cập nhật và không bao giờ thấy dữ liệu nửa cũ nửa mới.
+     * Người dùng giữ lại (không xoá) để tên vẫn hiện khi có tin nhắn cũ nhắc tới họ.
+     */
+    @Transaction
+    public void replaceAll(List<UserEntity> users, List<GroupEntity> groups, List<MemberEntity> members,
+                           List<BillEntity> bills, List<BillItemEntity> items, List<DebtStatusEntity> statuses,
+                           List<InboxEntity> inbox) {
+        clearInbox();
+        clearStatuses();
+        clearItems();
+        clearBills();
+        clearMembers();
+        clearGroups();
+        if (!users.isEmpty()) upsertUsers(users);
+        if (!groups.isEmpty()) upsertGroups(groups);
+        if (!members.isEmpty()) upsertMembers(members);
+        if (!bills.isEmpty()) upsertBills(bills);
+        if (!items.isEmpty()) insertItems(items);
+        if (!statuses.isEmpty()) upsertStatuses(statuses);
+        if (!inbox.isEmpty()) upsertInbox(inbox);
+    }
+
     @Query("DELETE FROM users") public abstract void clearUsers();
     @Query("DELETE FROM bill_groups") public abstract void clearGroups();
     @Query("DELETE FROM members") public abstract void clearMembers();

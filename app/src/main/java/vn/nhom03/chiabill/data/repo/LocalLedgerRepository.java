@@ -679,7 +679,8 @@ public final class LocalLedgerRepository implements LedgerRepository {
             }
 
             BillEntity b = new BillEntity();
-            b.id = old != null ? old.id : UUID.randomUUID().toString();
+            // Bản có máy chủ đặt id trước (id của máy chủ) rồi mới lưu vào máy: giữ đúng id đó.
+            b.id = old != null ? old.id : in.id != null ? in.id : UUID.randomUUID().toString();
             b.groupId = in.groupId;
             b.title = in.title.trim().isEmpty() ? "Hoá đơn" : in.title.trim();
             b.payerId = in.spec.getPayerId();
@@ -702,6 +703,7 @@ public final class LocalLedgerRepository implements LedgerRepository {
             b.servicePercent = in.spec.getServicePercent();
             b.rounding = in.spec.getRounding();
             b.createdBy = old != null ? old.createdBy : actorId;
+            b.imageUrl = in.imageUrl != null ? in.imageUrl : old != null ? old.imageUrl : null;
             b.createdAt =
                 in.date > 0 ? in.date : old != null ? old.createdAt : now;
             b.updatedAt = now;

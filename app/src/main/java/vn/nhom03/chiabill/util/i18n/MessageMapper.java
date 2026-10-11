@@ -18,6 +18,8 @@ public final class MessageMapper {
                 return "Không tìm thấy tài khoản người dùng.";
             case "INTERNAL_SERVER_ERROR":
                 return "Máy chủ đang gặp sự cố. Vui lòng quay lại sau!";
+            case "NETWORK_ERROR":
+                return "Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại; lần đầu trong ngày máy chủ có thể cần khoảng 1 phút để thức dậy.";
             case "BAD_REQUEST":
                 return "Yêu cầu không hợp lệ. Vui lòng kiểm tra lại thông tin.";
             default:

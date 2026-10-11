@@ -25,6 +25,8 @@ public class BillEntity {
     /** CUSTOM: "id:số tiền,…"; PERCENT: "id:phần vạn,…". Rỗng với EQUAL và ITEMIZED. */
     @NonNull public String sharesCsv = "";
     public String createdBy;
+    /** Ảnh hoá đơn (URL trên máy chủ), null nếu không có. */
+    public String imageUrl;
     public long createdAt;
     public long updatedAt;
 }

@@ -7,7 +7,7 @@ import androidx.room.Room;
 import androidx.room.RoomDatabase;
 
 @Database(entities = {UserEntity.class, GroupEntity.class, MemberEntity.class, BillEntity.class,
-        BillItemEntity.class, DebtStatusEntity.class, InboxEntity.class}, version = 3, exportSchema = false)
+        BillItemEntity.class, DebtStatusEntity.class, InboxEntity.class}, version = 4, exportSchema = false)
 public abstract class AppDatabase extends RoomDatabase {
     public abstract AppDao dao();
 

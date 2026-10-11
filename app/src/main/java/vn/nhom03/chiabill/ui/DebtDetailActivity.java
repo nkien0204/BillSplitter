@@ -11,8 +11,11 @@ import android.os.Bundle;
 import android.view.View;
 
 import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.PickVisualMediaRequest;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.core.content.ContextCompat;
+
+import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 
 import vn.nhom03.chiabill.R;
 import vn.nhom03.chiabill.data.db.GroupEntity;
@@ -31,13 +34,16 @@ import vn.nhom03.chiabill.domain.qr.PaymentTarget;
 import vn.nhom03.chiabill.domain.qr.TransferContent;
 import vn.nhom03.chiabill.domain.qr.VietQrCodec;
 import vn.nhom03.chiabill.util.Nav;
+import vn.nhom03.chiabill.util.Photos;
+import vn.nhom03.chiabill.util.RemoteImage;
 import vn.nhom03.chiabill.util.QrExport;
 import vn.nhom03.chiabill.util.QrImages;
 import vn.nhom03.chiabill.util.Ui;
 
 /**
  * Màn quan trọng nhất cho người nợ: số tiền, VietQR của người trả có sẵn số tiền + nội dung,
- * và các nút theo máy trạng thái thanh toán. Người trả thấy nút xác nhận / nhắc / gửi QR.
+ * và các nút theo máy trạng thái thanh toán. "Tôi đã chuyển" có thể kèm ảnh chụp màn hình
+ * giao dịch để người trả đối chiếu. Người trả thấy nút xác nhận / nhắc / gửi qua Zalo.
  */
 public class DebtDetailActivity extends BaseActivity {
     private static final long RECENT_QR_CHANGE = 7L * 24 * 3600 * 1000;
@@ -45,7 +51,6 @@ public class DebtDetailActivity extends BaseActivity {
     private ActivityDebtDetailBinding b;
     private String debtKey;
     private boolean reveal;
-    private boolean showPayload;
     private String payload;
     private Bitmap qrBitmap;
     private String qrFor;
@@ -54,6 +59,11 @@ public class DebtDetailActivity extends BaseActivity {
     private final ActivityResultLauncher<String> storagePermission =
             registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
                 if (granted) saveQr(); else toast("Không có quyền lưu ảnh. Dùng “Sao chép” hoặc chia sẻ thay thế.");
+            });
+
+    private final ActivityResultLauncher<PickVisualMediaRequest> pickProof =
+            registerForActivityResult(new ActivityResultContracts.PickVisualMedia(), uri -> {
+                if (uri != null) sendProof(uri);
             });
 
     @Override
@@ -65,7 +75,6 @@ public class DebtDetailActivity extends BaseActivity {
         setContentView(b.getRoot());
         setupToolbar(b.toolbar);
         b.reveal.setOnClickListener(v -> { reveal = !reveal; if (snap != null) render(snap); });
-        b.togglePayload.setOnClickListener(v -> { showPayload = !showPayload; if (snap != null) render(snap); });
         repo().snapshot().observe(this, this::render);
     }
 
@@ -148,7 +157,7 @@ public class DebtDetailActivity extends BaseActivity {
         b.saveQr.setEnabled(target != null);
         b.saveQr.setOnClickListener(v -> requestSaveQr());
         b.copy.setOnClickListener(v -> copy(target, d.getAmount(), content));
-        b.markPaid.setOnClickListener(v -> act(Action.MARK_PAID, "Đã báo " + creditor + ". Chờ xác nhận."));
+        b.markPaid.setOnClickListener(v -> askProof(creditor));
 
         b.creditorConfirm.setVisibility(role == Role.CREDITOR && st == DebtStatus.MARKED_PAID ? View.VISIBLE : View.GONE);
         b.confirm.setOnClickListener(v -> act(Action.CONFIRM, "Đã xác nhận nhận " + Money.format(d.getAmount()) + " từ " + debtor + "."));
@@ -157,13 +166,13 @@ public class DebtDetailActivity extends BaseActivity {
         boolean pending = role == Role.CREDITOR && (st == DebtStatus.PENDING || st == DebtStatus.DISPUTED);
         b.creditorPending.setVisibility(pending ? View.VISIBLE : View.GONE);
         boolean guest = debtorUser != null && debtorUser.guest;
-        b.remind.setText(guest ? debtor + " là khách" : "Nhắc " + debtor);
         b.remind.setEnabled(!guest);
         b.remind.setOnClickListener(v -> {
             repo().sendReminder(d.getDebtorId(), me, creditor + " nhắc bạn trả " + Money.format(d.getAmount())
                     + " cho “" + bill.getTitle() + "”.", d.getBillId(), d.getKey());
             toast("Đã gửi nhắc tới " + debtor + ".");
         });
+        b.remind.setText(guest ? debtor + " là khách" : "Nhắc trong app");
         b.share.setOnClickListener(v -> share(debtor, d.getAmount(), bill.getTitle(), target, content));
         b.cashConfirm.setOnClickListener(v -> act(Action.CONFIRM, "Đã ghi nhận " + debtor + " trả tiền mặt."));
 
@@ -192,12 +201,67 @@ public class DebtDetailActivity extends BaseActivity {
             b.note.setTextColor(Ui.col(this, fg));
         }
 
-        // ---- chi tiết kỹ thuật ----
-        b.togglePayload.setText(showPayload ? "Ẩn chuỗi VietQR" : "Xem chuỗi VietQR (chi tiết kỹ thuật)");
-        b.payload.setVisibility(showPayload ? View.VISIBLE : View.GONE);
-        b.payload.setText(payload == null ? "Người nhận chưa khai QR nên chưa sinh được chuỗi."
-                : payload + "\n\nCRC-16/CCITT: " + payload.substring(payload.length() - 4)
-                + "\n54 (số tiền): " + d.getAmount() + "\n62.08 (nội dung): " + content);
+        // ---- ảnh chuyển khoản (người nợ gửi kèm "Tôi đã chuyển") ----
+        String proof = s.proofOf(d.getKey());
+        b.proofBox.setVisibility(proof == null ? View.GONE : View.VISIBLE);
+        if (proof != null) {
+            RemoteImage.load(b.proofPhoto, proof, Ui.dp(this, 720));
+            b.proofPhoto.setOnClickListener(v -> {
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, android.net.Uri.parse(proof)));
+                } catch (Exception e) {
+                    toast("Không mở được ảnh.");
+                }
+            });
+        }
+    }
+
+    /** "Tôi đã chuyển": hỏi có gửi kèm ảnh chụp màn hình giao dịch không (không bắt buộc). */
+    private void askProof(String creditor) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Gửi kèm ảnh chuyển khoản?")
+                .setMessage("Ảnh chụp màn hình giao dịch giúp " + creditor + " xác nhận nhanh hơn.")
+                .setPositiveButton("Chọn ảnh", (dlg, w) -> pickProof.launch(new PickVisualMediaRequest.Builder()
+                        .setMediaType(ActivityResultContracts.PickVisualMedia.ImageOnly.INSTANCE).build()))
+                .setNegativeButton("Không cần", (dlg, w) -> markPaid(creditor, null))
+                .show();
+    }
+
+    private void sendProof(android.net.Uri uri) {
+        String creditor = creditorName();
+        app().showLoading(this);
+        new Thread(() -> {
+            byte[] jpeg;
+            try {
+                jpeg = Photos.compress(getContentResolver(), uri);
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    app().hideLoading();
+                    toast("Không đọc được ảnh. Thử ảnh khác.");
+                });
+                return;
+            }
+            runOnUiThread(() -> repo().uploadImage(jpeg, "proof", url -> markPaid(creditor, url), err -> {
+                app().hideLoading();
+                toast(err);
+            }));
+        }).start();
+    }
+
+    private void markPaid(String creditor, String proofUrl) {
+        app().showLoading(this);
+        repo().markPaid(debtKey, me(), proofUrl, () -> {
+            app().hideLoading();
+            toast("Đã báo " + creditor + (proofUrl != null ? " kèm ảnh chuyển khoản" : "") + ". Chờ xác nhận.");
+        }, err -> {
+            app().hideLoading();
+            toast(err);
+        });
+    }
+
+    private String creditorName() {
+        Debt d = snap == null ? null : snap.ledger().debt(debtKey);
+        return d == null ? "người trả" : snap.name(d.getCreditorId());
     }
 
     private void act(Action action, String okMessage) {
@@ -231,15 +295,27 @@ public class DebtDetailActivity extends BaseActivity {
         toast("Đã sao chép thông tin chuyển khoản.");
     }
 
+    /** Zalo là app nhắn tin phổ biến nhất: có Zalo thì mở thẳng Zalo, không thì hiện bảng chia sẻ. */
+    private static final String ZALO = "com.zing.zalo";
+
     private void share(String debtor, long amount, String billTitle, PaymentTarget t, String content) {
         String msg = debtor + " ơi, phần của bạn cho “" + billTitle + "” là " + Money.format(amount) + ".";
         if (t != null) msg += "\nQuét QR đính kèm, hoặc chuyển " + BankDirectory.nameOf(t.getBankBin()) + " STK " + t.getAccountNo()
                 + ", nội dung: " + content;
         try {
+            Intent send;
             if (qrBitmap != null && t != null) {
-                startActivity(QrExport.shareIntent(this, qrBitmap, msg));
+                Intent chooser = QrExport.shareIntent(this, qrBitmap, msg);
+                send = chooser.getParcelableExtra(Intent.EXTRA_INTENT);
+                if (send == null) send = chooser;
             } else {
-                startActivity(Intent.createChooser(new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, msg), null));
+                send = new Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, msg);
+            }
+            if (getPackageManager().getLaunchIntentForPackage(ZALO) != null) {
+                startActivity(new Intent(send).setPackage(ZALO));
+            } else {
+                toast("Máy chưa cài Zalo, chọn app khác để gửi.");
+                startActivity(Intent.createChooser(send, "Gửi nhắc nợ"));
             }
         } catch (Exception e) {
             toast("Không mở được chia sẻ: " + e.getMessage());

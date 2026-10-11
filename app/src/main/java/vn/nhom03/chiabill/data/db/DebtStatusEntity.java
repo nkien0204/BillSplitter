@@ -12,4 +12,6 @@ public class DebtStatusEntity {
     @NonNull public String billId = "";
     @NonNull public String status = "PENDING";
     public long updatedAt;
+    /** Ảnh chụp màn hình chuyển khoản người nợ gửi kèm "Tôi đã chuyển", null nếu không có. */
+    public String proofImageUrl;
 }

@@ -86,6 +86,19 @@ public interface ChiaBillApi {
     @GET("api/payments/group/{groupId}/balances")
     Call<BalanceDataResponse> getBalances(@Path("groupId") String groupId);
 
+    // Đồng bộ: mọi thứ tài khoản này cần, một lần gọi
+    @GET("api/sync")
+    Call<SyncResponse> sync();
+
+    // Ảnh hoá đơn / ảnh chuyển khoản. kind = "bill" | "proof"
+    @Multipart
+    @POST("api/uploads")
+    Call<UploadResponse> upload(@Query("kind") String kind, @Part okhttp3.MultipartBody.Part image);
+
+    // Đánh thức máy chủ miễn phí đang ngủ
+    @GET("health")
+    Call<Void> health();
+
     // Inbox
     @POST("api/inbox/send")
     Call<Void> sendNotification(@Body NotificationRequest request);
@@ -164,6 +177,10 @@ public interface ChiaBillApi {
         public int rounding;
         public String category;
         public String sharesCsv;
+        public String imageUrl;
+        public long createdAt;
+        /** Khi sửa: người có số tiền thay đổi, máy chủ đưa trạng thái của họ về chưa trả. */
+        public String resetDebtorsCsv;
         public List<BillItemRequest> items;
     }
 
@@ -184,6 +201,7 @@ public interface ChiaBillApi {
     class MarkPaidRequest {
 
         public String billId;
+        public String proofImageUrl;
     }
 
     class ConfirmPaymentRequest {
@@ -203,6 +221,22 @@ public interface ChiaBillApi {
         public List<BillDetailsResponse> bills;
         public List<MemberEntity> members;
         public List<DebtStatusEntity> debtStatuses;
+    }
+
+    class SyncResponse {
+
+        public long serverTime;
+        public List<GroupEntity> groups;
+        public List<MemberEntity> members;
+        public List<UserEntity> users;
+        public List<BillDetailsResponse> bills;
+        public List<DebtStatusEntity> debtStatuses;
+        public List<InboxEntity> inbox;
+    }
+
+    class UploadResponse {
+
+        public String url;
     }
 
     class NotificationRequest {

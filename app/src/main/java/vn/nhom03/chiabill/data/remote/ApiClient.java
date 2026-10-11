@@ -24,7 +24,8 @@ public class ApiClient {
             SessionManager session = new SessionManager(appContext);
 
             HttpLoggingInterceptor logging = new HttpLoggingInterceptor();
-            logging.setLevel(HttpLoggingInterceptor.Level.BODY);
+            // BODY in cả ảnh gửi lên và mọi lần đồng bộ: chỉ bật ở bản debug.
+            logging.setLevel(BuildConfig.DEBUG ? HttpLoggingInterceptor.Level.BASIC : HttpLoggingInterceptor.Level.NONE);
 
             Interceptor authInterceptor = chain -> {
                 Request original = chain.request();
@@ -53,7 +54,11 @@ public class ApiClient {
                 return response;
             };
 
+            // Máy chủ miễn phí ngủ khi rảnh, lần gọi đầu có thể mất 30–60 giây: chờ đủ lâu.
             OkHttpClient client = new OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(60, java.util.concurrent.TimeUnit.SECONDS)
                 .addInterceptor(logging)
                 .addInterceptor(authInterceptor)
                 .build();
