@@ -19,6 +19,10 @@ const DebtStatus = sequelize.define(
     updatedAt: {
       type: DataTypes.BIGINT,
     },
+    proofImageUrl: {
+      type: DataTypes.STRING(1024),
+      allowNull: true,
+    },
   },
   {
     tableName: "DebtStatus",

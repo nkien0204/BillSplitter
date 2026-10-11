@@ -3,8 +3,8 @@ const inboxService = require("../services/inbox.service");
 class InboxController {
   async send(req, res) {
     try {
-      const { recipientId, fromId, message, billId, debtKey } = req.body;
-      await inboxService.sendNotification(recipientId, fromId, message, billId, debtKey);
+      const { recipientId, message, billId, debtKey } = req.body;
+      await inboxService.sendNotification(recipientId, message, billId, debtKey);
       res.status(201).json({ message: "Notification sent" });
     } catch (error) {
       res.status(400).json({ error: error.message });

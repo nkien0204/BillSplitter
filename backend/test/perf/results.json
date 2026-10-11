@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "date": "2026-10-11T16:09:11.304Z",
+    "db": "postgres",
+    "bills": 200,
+    "seconds": 10,
+    "node": "v22.22.0"
+  },
+  "results": [
+    {
+      "scenario": "GET /health",
+      "connections": 10,
+      "requestsPerSec": 7365,
+      "latencyP50ms": 0,
+      "latencyP99ms": 5,
+      "errors": 0,
+      "total": 73650
+    },
+    {
+      "scenario": "GET /api/sync, 3 phones",
+      "connections": 3,
+      "requestsPerSec": 168,
+      "latencyP50ms": 16,
+      "latencyP99ms": 33,
+      "errors": 0,
+      "total": 1678
+    },
+    {
+      "scenario": "GET /api/sync, 30 phones",
+      "connections": 30,
+      "requestsPerSec": 143,
+      "latencyP50ms": 205,
+      "latencyP99ms": 284,
+      "errors": 0,
+      "total": 1428
+    },
+    {
+      "scenario": "GET /api/payments/.../balances, 3 phones",
+      "connections": 3,
+      "requestsPerSec": 33,
+      "latencyP50ms": 83,
+      "latencyP99ms": 259,
+      "errors": 0,
+      "total": 327
+    }
+  ]
+}

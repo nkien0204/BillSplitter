@@ -55,6 +55,10 @@ const Bill = sequelize.define(
     createdBy: {
       type: DataTypes.STRING,
     },
+    imageUrl: {
+      type: DataTypes.STRING(1024),
+      allowNull: true,
+    },
     createdAt: {
       type: DataTypes.BIGINT,
     },

@@ -1,14 +1,17 @@
-const config = require("./config/config.json");
+const settings = require("./src/config/settings");
 const app = require("./app");
 const sequelize = require("./src/config/db");
 
-const PORT = config.app.port || 3000;
+const PORT = settings.port;
 
 async function startServer() {
   try {
-    // We now use migrations via sequelize-cli to manage the schema.
-    // sync() is removed to avoid accidental schema overrides.
-    console.log("🚀 Using migrations for database schema management");
+    if (!settings.jwtSecret) {
+      throw new Error("JWT secret missing: set JWT_SECRET or app.jwtSecret in config/config.json");
+    }
+    // Schema changes only through migrations (npm run migrate); sync() is never used.
+    await sequelize.authenticate();
+    console.log(`🚀 Database ready (${settings.db.dialect})`);
 
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`🚀 Server running on port ${PORT}`);

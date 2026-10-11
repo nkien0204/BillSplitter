@@ -20,3 +20,6 @@ backend/config/config.json
 backend/database.sqlite
 backend/node_modules/
 backend/.env
+
+# Photos stored locally by the backend
+backend/uploads/

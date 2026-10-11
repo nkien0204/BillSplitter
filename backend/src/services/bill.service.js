@@ -2,11 +2,12 @@ const Bill = require("../models/bill.model");
 const BillItem = require("../models/billItem.model");
 const Group = require("../models/group.model");
 const Member = require("../models/member.model");
+const DebtStatus = require("../models/debtStatus.model");
 const { v4: uuidv4 } = require("uuid");
 
 class BillService {
   async createBill(userId, billData) {
-    const { groupId, title, payerId, mode, subtotal, participantsCsv, vatPercent, servicePercent, rounding, category, sharesCsv } = billData;
+    const { groupId, title, payerId, mode, subtotal, participantsCsv, vatPercent, servicePercent, rounding, category, sharesCsv, imageUrl } = billData;
 
     const group = await Group.findByPk(groupId);
     if (!group) throw new Error("Group not found");
@@ -28,6 +29,7 @@ class BillService {
       rounding: rounding || 1000,
       category: category || "KHAC",
       sharesCsv: sharesCsv || "",
+      imageUrl: imageUrl || null,
       createdBy: userId,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -35,10 +37,11 @@ class BillService {
 
     // If ITEMIZED, handle bill items
     if (mode === "ITEMIZED" && billData.items) {
-      const itemPromises = billData.items.map((item) =>
+      const itemPromises = billData.items.map((item, i) =>
         BillItem.create({
           billId: bill.id,
-          position: item.position,
+          // List order is the item order; the app does not number them.
+          position: i,
           name: item.name,
           price: item.price,
           consumersCsv: item.consumersCsv,
@@ -63,18 +66,22 @@ class BillService {
     // This would require checking DebtStatus for "CONFIRMED"
     // I'll implement this check once I have the DebtStatus service
 
-    await bill.update({
-      ...updateData,
-      updatedAt: Date.now(),
-    });
+    // Only bill fields may change; id, group and creator stay as they are.
+    const editable = ["title", "payerId", "mode", "subtotal", "participantsCsv", "vatPercent",
+      "servicePercent", "rounding", "category", "sharesCsv", "imageUrl"];
+    const changes = {};
+    for (const key of editable) if (updateData[key] !== undefined) changes[key] = updateData[key];
+    await bill.update({ ...changes, updatedAt: Date.now() });
 
-    // If mode changed to ITEMIZED or items updated
-    if (updateData.mode === "ITEMIZED" && updateData.items) {
+    // Items only matter for ITEMIZED; switching away drops the old ones.
+    if (updateData.mode && updateData.mode !== "ITEMIZED") {
       await BillItem.destroy({ where: { billId: bill.id } });
-      const itemPromises = updateData.items.map((item) =>
+    } else if (updateData.mode === "ITEMIZED" && updateData.items) {
+      await BillItem.destroy({ where: { billId: bill.id } });
+      const itemPromises = updateData.items.map((item, i) =>
         BillItem.create({
           billId: bill.id,
-          position: item.position,
+          position: i,
           name: item.name,
           price: item.price,
           consumersCsv: item.consumersCsv,
@@ -96,8 +103,7 @@ class BillService {
 
     await Bill.destroy({ where: { id: billId } });
     await BillItem.destroy({ where: { billId: billId } });
-    // Also destroy associated debt statuses
-    // await DebtStatus.destroy({ where: { billId: billId } });
+    await DebtStatus.destroy({ where: { billId: billId } });
 
     return { success: true };
   }

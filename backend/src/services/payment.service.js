@@ -13,8 +13,8 @@ const STATUS = {
 };
 
 class PaymentService {
-  // Debtor: PENDING or DISPUTED -> MARKED_PAID.
-  async markAsPaid(userId, billId) {
+  // Debtor: PENDING or DISPUTED -> MARKED_PAID, optionally with a screenshot.
+  async markAsPaid(userId, billId, proofImageUrl) {
     const bill = await Bill.findByPk(billId);
     if (!bill) throw new Error("Bill not found");
 
@@ -29,6 +29,7 @@ class PaymentService {
       billId,
       status: STATUS.MARKED_PAID,
       updatedAt: Date.now(),
+      proofImageUrl: proofImageUrl || (status ? status.proofImageUrl : null),
     });
     return { success: true };
   }
@@ -40,11 +41,14 @@ class PaymentService {
     if (bill.payerId !== userId)
       throw new Error("Only the payer can confirm payment");
 
+    const debtKey = `${billId}:${debtorId}`;
+    const status = await DebtStatus.findByPk(debtKey);
     await DebtStatus.upsert({
-      debtKey: `${billId}:${debtorId}`,
+      debtKey,
       billId,
       status: STATUS.CONFIRMED,
       updatedAt: Date.now(),
+      proofImageUrl: status ? status.proofImageUrl : null,
     });
     return { success: true };
   }

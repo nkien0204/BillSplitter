@@ -4,8 +4,8 @@ class PaymentController {
   async markPaid(req, res) {
     try {
       const userId = req.user.id;
-      const { billId } = req.body;
-      await paymentService.markAsPaid(userId, billId);
+      const { billId, proofImageUrl } = req.body;
+      await paymentService.markAsPaid(userId, billId, proofImageUrl);
       res.status(200).json({ message: "Payment marked as paid" });
     } catch (error) {
       res.status(400).json({ error: error.message });

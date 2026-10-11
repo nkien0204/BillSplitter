@@ -1,5 +1,5 @@
 const jwt = require("jsonwebtoken");
-const config = require("../../config/config.json");
+const settings = require("../config/settings");
 const AuthService = require("../services/auth.service");
 
 const invalidToken = (res) =>
@@ -33,7 +33,7 @@ const authMiddleware = async (req, res, next) => {
   }
 
   try {
-    const decoded = jwt.verify(token, config.app.jwtSecret);
+    const decoded = jwt.verify(token, settings.jwtSecret);
     if (
       !decoded.sid ||
       !(await AuthService.isSessionActive(decoded.sid, decoded.userId))

@@ -1,12 +1,15 @@
 const Inbox = require("../models/inbox.model");
 
 class InboxService {
-  async sendNotification(recipientId, fromId, message, billId, debtKey) {
+  // The app writes the full sentence (it already names the sender), so the
+  // message is stored as is and shown on the recipient's devices.
+  async sendNotification(recipientId, message, billId, debtKey) {
+    if (!recipientId || !message) throw new Error("recipientId and message are required");
     return Inbox.create({
-      recipientId,
-      message: `${fromId}: ${message}`,
-      billId,
-      debtKey,
+      recipientId: String(recipientId),
+      message: String(message).slice(0, 250),
+      billId: billId || null,
+      debtKey: debtKey || null,
       createdAt: Date.now(),
     });
   }

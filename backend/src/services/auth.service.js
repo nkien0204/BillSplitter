@@ -3,11 +3,12 @@ const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
 const User = require("../models/user.model");
 const Session = require("../models/session.model");
-const config = require("../../config/config.json");
+const settings = require("../config/settings");
 const Logger = require("../util/logger");
 
-const JWT_SECRET = config.app.jwtSecret;
-const TOKEN_TTL_SECONDS = 24 * 60 * 60;
+const JWT_SECRET = settings.jwtSecret;
+// 30 days, so people are not signed out of the app every day.
+const TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 class AuthService {
   // Creates a session row and a JWT bound to it via the `sid` claim.

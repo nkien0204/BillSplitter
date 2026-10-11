@@ -177,7 +177,7 @@ class GroupService {
   /**
    * Deletes a group with all its bills, items, debt statuses, related inbox
    * messages and memberships. Only the creator may do it. Everything is removed
-   * in one transaction; active members are notified in the same transaction.
+   * in one transaction.
    *
    * Money checks (e.g. unsettled debts) are done by the client: shares are
    * derived from bills by the domain split engine, which the server lacks.
@@ -189,7 +189,6 @@ class GroupService {
       if (group.createdBy !== actorId)
         throw this._error(403, "Only the group creator can delete the group");
 
-      const members = await Member.findAll({ where: { groupId }, transaction });
       const bills = await Bill.findAll({
         where: { groupId },
         attributes: ["id"],
@@ -206,19 +205,7 @@ class GroupService {
       await Member.destroy({ where: { groupId }, transaction });
       await Group.destroy({ where: { id: groupId }, transaction });
 
-      const actor = await User.findByPk(actorId, { transaction });
-      const now = Date.now();
-      const recipients = members.filter((m) => m.active && m.userId !== actorId);
-      if (recipients.length > 0) {
-        await Inbox.bulkCreate(
-          recipients.map((m) => ({
-            recipientId: m.userId,
-            message: `${actor ? actor.name : "Người tạo nhóm"} đã xoá nhóm “${group.name}”.`,
-            createdAt: now,
-          })),
-          { transaction },
-        );
-      }
+      // The app tells the other members (it sends their inbox messages).
       return { success: true };
     });
   }

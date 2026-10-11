@@ -1,11 +1,14 @@
 const { Sequelize } = require("sequelize");
-const config = require("../../config/config.json");
+const settings = require("./settings");
 
-const env = process.env.NODE_ENV || "development";
-const dbConfig = config[env];
+if (settings.db.dialect === "postgres") {
+  // BIGINT columns hold VND amounts and millisecond timestamps; return them as
+  // numbers (they fit in a double) so the app's Gson sees the same JSON as with SQLite.
+  require("pg").defaults.parseInt8 = true;
+}
 
-const sequelize = new Sequelize({
-  ...dbConfig,
-});
+const sequelize = settings.db.use_env_variable
+  ? new Sequelize(process.env[settings.db.use_env_variable], settings.db)
+  : new Sequelize({ ...settings.db });
 
 module.exports = sequelize;

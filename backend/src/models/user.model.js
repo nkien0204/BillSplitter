@@ -4,9 +4,12 @@ const sequelize = require("../config/db");
 const User = sequelize.define(
   "User",
   {
+    // Matches the autoincrement INTEGER column. As STRING, Postgres got an
+    // explicit NULL id on insert and refused it.
     id: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       primaryKey: true,
+      autoIncrement: true,
     },
     name: {
       type: DataTypes.STRING,
@@ -45,8 +48,10 @@ const User = sequelize.define(
       type: DataTypes.BIGINT,
       defaultValue: 0,
     },
+    // A timestamp column (see the create-users migration); BIGINT here made
+    // Postgres reject every registration.
     created_at: {
-      type: DataTypes.BIGINT,
+      type: DataTypes.DATE,
       defaultValue: DataTypes.NOW,
     },
   },
