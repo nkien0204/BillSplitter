@@ -1,6 +1,7 @@
 const settings = require("./src/config/settings");
 const app = require("./app");
 const sequelize = require("./src/config/db");
+const uploadService = require("./src/services/upload.service");
 
 const PORT = settings.port;
 
@@ -17,6 +18,7 @@ async function startServer() {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`🔗 Local: http://localhost:${PORT}`);
       console.log(`🌐 Network: http://<your-ip-address>:${PORT}`);
+      uploadService.checkStorage().then((line) => console.log(`📷 ${line}`));
     });
   } catch (error) {
     console.error("❌ Failed to start server:", error);

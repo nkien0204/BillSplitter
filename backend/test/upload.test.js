@@ -49,3 +49,14 @@ test("unknown kinds are filed under bill, other file types are refused", async (
   assert.match(received.url, /\/chiabill\/bill\//);
   await assert.rejects(uploadService.save({ mimetype: "application/pdf", buffer: Buffer.from([1]) }, "bill", "7", ""), /Only JPEG/);
 });
+
+test("the startup check writes a ping image, or says which setting is missing", async () => {
+  assert.match(await uploadService.checkStorage(), /Supabase Storage OK/);
+  assert.equal(received.url, "/storage/v1/object/chiabill/healthcheck/ping.png");
+  assert.equal(received.headers["content-type"], "image/png");
+
+  const key = settings.supabase.serviceKey;
+  settings.supabase.serviceKey = "";
+  assert.match(await uploadService.checkStorage(), /SUPABASE_SERVICE_KEY not set/);
+  settings.supabase.serviceKey = key;
+});

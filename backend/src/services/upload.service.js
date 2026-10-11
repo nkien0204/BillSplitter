@@ -6,6 +6,11 @@ const settings = require("../config/settings");
 const TYPES = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const KINDS = ["bill", "proof"];
 const LOCAL_DIR = path.resolve(__dirname, "../../uploads");
+// A 1x1 transparent PNG, written by the startup check.
+const PING_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 class UploadService {
   get maxBytes() {
@@ -33,6 +38,24 @@ class UploadService {
     return `${baseUrl}/uploads/${name}`;
   }
 
+  /**
+   * Startup check: writes healthcheck/ping.png so a wrong or missing key shows
+   * up in the server log at boot, not on someone's first photo. Never throws.
+   */
+  async checkStorage() {
+    const { url, serviceKey, bucket } = settings.supabase;
+    if (!url || !serviceKey) {
+      const missing = !url ? "SUPABASE_URL" : "SUPABASE_SERVICE_KEY";
+      return `Photos: on this server's disk, lost on restart (${missing} not set)`;
+    }
+    try {
+      await this._toSupabase("healthcheck/ping.png", { mimetype: "image/png", buffer: PING_PNG });
+      return `Photos: Supabase Storage OK (bucket ${bucket})`;
+    } catch (err) {
+      return `Photos: Supabase Storage check failed: ${err.message}`;
+    }
+  }
+
   async _toSupabase(name, file) {
     const { url, serviceKey, bucket } = settings.supabase;
     const headers = { apikey: serviceKey, "Content-Type": file.mimetype, "x-upsert": "true" };
@@ -43,6 +66,7 @@ class UploadService {
       method: "POST",
       headers,
       body: file.buffer,
+      signal: AbortSignal.timeout(30000),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => "");
