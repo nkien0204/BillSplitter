@@ -24,3 +24,4 @@ backend/.env
 # Photos stored locally by the backend
 backend/uploads/
 functions/node_modules/
+*-debug.log
