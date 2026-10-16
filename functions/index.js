@@ -14,6 +14,8 @@ const DEAD_TOKEN = new Set([
   'messaging/invalid-registration-token',
 ]);
 
+// LUỒNG 6 · Thông báo · Bước 4/5: App đang tắt: Cloud Function chạy khi có tin mới, gửi thông báo đẩy (FCM) tới mọi máy của người nhận.
+//   → Android tự hiện thông báo; ChiaBillMessagingService giữ mã FCM luôn mới
 exports.pushInbox = onDocumentCreated(
   { document: 'users/{uid}/inbox/{id}', region: 'asia-southeast1' },
   async (event) => {

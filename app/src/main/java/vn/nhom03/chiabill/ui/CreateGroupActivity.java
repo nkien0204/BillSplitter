@@ -67,6 +67,8 @@ public class CreateGroupActivity extends BaseActivity {
         b.phoneLayout.setError(null);
         b.found.getRoot().setVisibility(View.GONE);
         found = null;
+        // LUỒNG 3 · Tạo nhóm và mời · Bước 1/7: Nhập số điện thoại của bạn để thêm vào nhóm.
+        //   → FirestoreLedgerRepository.findUserByPhone
         repo().findUserByPhone(raw, u -> {
             if (u == null) {
                 b.phoneLayout.setError("Chưa có tài khoản nào dùng số này. Người đó cần cài ChiaBill và đăng ký bằng số này trước.");
@@ -131,6 +133,8 @@ public class CreateGroupActivity extends BaseActivity {
             return;
         }
         b.save.setEnabled(false);
+        // LUỒNG 3 · Tạo nhóm và mời · Bước 3/7: Bấm "Tạo nhóm": tên nhóm, thành viên có tài khoản, khách (chỉ có tên).
+        //   → FirestoreLedgerRepository.createGroup → LocalLedgerRepository.createGroup
         repo().createGroup(name, me(), new ArrayList<>(members.keySet()), new ArrayList<>(guests), id -> {
             startActivity(new Intent(this, GroupDetailActivity.class).putExtra(Nav.GROUP_ID, id));
             finish();

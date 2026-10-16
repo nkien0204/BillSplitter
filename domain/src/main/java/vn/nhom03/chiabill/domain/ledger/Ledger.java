@@ -31,6 +31,9 @@ public final class Ledger {
      * @param bills        mọi hoá đơn
      * @param statuses     khoá Debt.keyOf → trạng thái; thiếu = PENDING
      */
+    // LUỒNG 8 · Số dư và tất toán · Bước 1/4: Từ hoá đơn + trạng thái: chia từng hoá đơn bằng SplitEngine, mỗi người nợ một khoản (Debt) cho người trả.
+    //   Không có API nào tính số dư: mọi máy tự tính và ra cùng một kết quả.
+    //   → owedTo / owedBy / netBalances
     public Ledger(Map<String, List<String>> groupMembers, List<Bill> bills, Map<String, DebtStatus> statuses) {
         this.groupMembers = groupMembers;
         this.bills = Collections.unmodifiableList(new ArrayList<>(bills));
@@ -104,6 +107,8 @@ public final class Ledger {
     }
 
     /** Số dư ròng mỗi thành viên nhóm trên các khoản chưa xác nhận. */
+    // LUỒNG 8 · Số dư và tất toán · Bước 2/4: Số dư ròng: được nợ trừ đang nợ, chỉ tính khoản chưa CONFIRMED. Tổng cả nhóm luôn bằng 0.
+    //   → settlement
     public Map<String, Long> netBalances(String groupId) {
         Map<String, Long> net = new LinkedHashMap<>();
         List<String> order = groupMembers.get(groupId);

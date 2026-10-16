@@ -137,6 +137,8 @@ public class QrSetupActivity extends BaseActivity {
     }
 
     private void handleRaw(String raw) {
+        // LUỒNG 5 · Trả nợ bằng VietQR · Bước 1/8: Người nhận tiền khai QR một lần: quét QR ngân hàng của mình, VietQrCodec đọc ra ngân hàng + số tài khoản.
+        //   → setPaymentTarget, ghi lên users/{uid} (bankBin, accountNo)
         QrParseResult r = VietQrCodec.parse(raw);
         if (!r.isOk()) {
             pending = null;

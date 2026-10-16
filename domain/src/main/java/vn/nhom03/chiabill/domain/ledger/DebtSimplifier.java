@@ -23,6 +23,9 @@ public final class DebtSimplifier {
     }
 
     /** @param net số dư ròng mỗi người (dương = được nợ). Tổng phải bằng 0. Thứ tự map dùng để phá hoà. */
+    // LUỒNG 8 · Số dư và tất toán · Bước 3/4: Rút gọn: ghép người âm nhiều nhất với người dương nhiều nhất, lặp lại.
+    //   Nhóm n người cần tối đa n−1 lần chuyển.
+    //   → SettleActivity
     public static List<Transfer> simplify(Map<String, Long> net) {
         long sum = 0;
         List<Bal> cred = new ArrayList<>();

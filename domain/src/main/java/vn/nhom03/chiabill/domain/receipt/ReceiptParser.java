@@ -173,6 +173,8 @@ public final class ReceiptParser {
             "ngay", "gio", "ban:", "so:", "thu ngan", "nhan vien", "wifi", "pass",
     };
 
+    // LUỒNG 7 · Chụp hoá đơn · Bước 3/4: Ghép các mảnh thành hàng, tìm tên quán, tổng tiền và các món (tên + giá). Java thuần, có test.
+    //   → BillEditActivity.applyReceipt
     public static Result parse(List<String> lines) {
         List<String> rows = new ArrayList<>();
         for (String l : lines) if (l != null && !l.trim().isEmpty()) rows.add(l.trim());

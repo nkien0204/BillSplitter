@@ -28,6 +28,8 @@ public final class PaymentStateMachine {
 
     private PaymentStateMachine() {}
 
+    // LUỒNG 5 · Trả nợ bằng VietQR · Bước 6/8: Luật duy nhất của tiền: người nợ báo đã chuyển; chỉ người nhận xác nhận hoặc báo chưa nhận.
+    //   firestore.rules (match /statuses) kiểm lại đúng bảng này phía máy chủ.
     public static boolean canApply(DebtStatus from, Action action, Role role) {
         switch (action) {
             case MARK_PAID:

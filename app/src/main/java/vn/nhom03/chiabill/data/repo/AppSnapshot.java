@@ -67,6 +67,8 @@ public final class AppSnapshot {
             if (s.proofImageUrl != null && !s.proofImageUrl.isEmpty()) proofs.put(s.debtKey, s.proofImageUrl);
         }
         this.inbox = Collections.unmodifiableList(new ArrayList<>(inbox));
+        // LUỒNG 2 · Đồng bộ Firestore → màn hình · Bước 5/6: Chuyển dòng Room thành đối tượng domain và tính sổ nợ một lần cho mọi màn hình (LUỒNG 8).
+        //   → màn hình nhận AppSnapshot
         this.ledger = new Ledger(this.allMembers, domainBills, st);
     }
 

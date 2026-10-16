@@ -112,6 +112,8 @@ public class GroupsFragment extends BaseFragment {
                     ChiaBillApp a = app(); // callback chạy sau, fragment có thể đã detach
                     String me = me();
                     if (me == null) return;
+                    // LUỒNG 3 · Tạo nhóm và mời · Bước 6/7: Người khác nhập mã mời để tự vào nhóm.
+                    //   → FirestoreLedgerRepository.joinByInviteCode
                     a.repository().joinByInviteCode(input.getText().toString(), me, groupId -> {
                         android.app.Activity act = getActivity();
                         if (act == null || act.isFinishing()) return;

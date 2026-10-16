@@ -71,6 +71,7 @@ public class GroupDetailActivity extends BaseActivity {
         repo().syncAll(null, null);
     }
 
+    // LUỒNG 4 · Thêm hoá đơn · Bước 7/7: Máy khác: hoá đơn mới hiện trong nhóm trong khoảng một giây, kèm thông báo (LUỒNG 6).
     private void render(AppSnapshot s) {
         if (userMissing(s)) return;
         last = s;

@@ -97,6 +97,9 @@ public class BillEditActivity extends BaseActivity {
         setContentView(b.getRoot());
         setupToolbar(b.toolbar);
         vm = new ViewModelProvider(this).get(BillEditViewModel.class);
+        // LUỒNG 4 · Thêm hoá đơn · Bước 1/7: Mở form hoá đơn: tạo BillDraft (bản nháp) từ nhóm hoặc từ hoá đơn cũ khi sửa.
+        //   (Có thể chụp hoá đơn để điền sẵn: LUỒNG 7.)
+        //   → refresh: xem trước phần từng người
         repo().snapshot().observe(this, this::onSnapshot);
     }
 
@@ -344,6 +347,9 @@ public class BillEditActivity extends BaseActivity {
         if (vm.draft == null || members == null) return;
         BillDraft d = vm.draft;
         vn.nhom03.chiabill.domain.model.BillSpec spec = d.toSpec();
+        // LUỒNG 4 · Thêm hoá đơn · Bước 2/7: Mỗi lần gõ: SplitEngine (domain) tính lại phần từng người ngay trên máy, không cần mạng.
+        //   Tiền là số nguyên; phần lẻ dồn cho người trả để tổng luôn khớp.
+        //   → save
         SplitResult r = SplitEngine.split(spec, order);
         String invalid = SplitEngine.check(spec, order);
 
@@ -400,6 +406,8 @@ public class BillEditActivity extends BaseActivity {
     private void save() {
         BillDraft d = vm.draft;
         b.save.setEnabled(false);
+        // LUỒNG 4 · Thêm hoá đơn · Bước 3/7: Bấm "Lưu và báo cho nhóm": gửi BillInput xuống repository.
+        //   → FirestoreLedgerRepository.saveBill
         repo().saveBill(new BillInput(d.id, d.groupId, d.title, d.toSpec(), d.category, d.date, d.imageUrl), me(), id -> {
             toast(d.id == null ? "Đã lưu và báo cho những người cần trả." : "Đã cập nhật hoá đơn.");
             if (d.id == null) startActivity(new Intent(this, BillDetailActivity.class).putExtra(Nav.BILL_ID, id));
@@ -442,6 +450,8 @@ public class BillEditActivity extends BaseActivity {
     private void onReceiptImage(Uri uri) {
         b.scanReceipt.setEnabled(false);
         b.scanReceipt.setText("Đang đọc hoá đơn…");
+        // LUỒNG 7 · Chụp hoá đơn · Bước 1/4: Chụp hoặc chọn ảnh hoá đơn.
+        //   → ReceiptScanner.scan
         ReceiptScanner.scan(this, uri, new ReceiptScanner.Listener() {
             @Override public void onResult(ReceiptParser.Result result) {
                 if (isFinishing() || isDestroyed()) return;
@@ -462,6 +472,9 @@ public class BillEditActivity extends BaseActivity {
         b.scanReceipt.setText("📷  Chụp lại hoá đơn");
     }
 
+    // LUỒNG 7 · Chụp hoá đơn · Bước 4/4: Điền tên quán, tổng tiền, hoặc danh sách món vào bản nháp; người dùng vẫn sửa được.
+    //   Ảnh hoá đơn được gửi lên Storage (uploadImage "bill") để cả nhóm xem.
+    //   → quay lại LUỒNG 4, bước 2
     private void applyReceipt(ReceiptParser.Result r) {
         BillDraft d = vm.draft;
         if (r.total <= 0) {

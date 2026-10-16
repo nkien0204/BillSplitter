@@ -106,6 +106,9 @@ public class DebtDetailActivity extends BaseActivity {
         // ---- QR ----
         PaymentTarget target = s.paymentTarget(d.getCreditorId());
         String content = TransferContent.forDebt(d.getBillId(), debtor);
+        // LUỒNG 5 · Trả nợ bằng VietQR · Bước 2/8: Người nợ mở khoản nợ: VietQrCodec tạo mã VietQR có sẵn số tiền và nội dung.
+        //   Quét bằng app ngân hàng nào cũng được, không ai phải gõ số tài khoản.
+        //   → chuyển khoản xong, chọn ảnh chụp màn hình: sendProof
         payload = target != null ? VietQrCodec.encode(target, d.getAmount(), content) : null;
         boolean showQr = target != null && (role == Role.DEBTOR || (role == Role.CREDITOR && st.isOpen()));
         b.qrCard.setVisibility(showQr ? View.VISIBLE : View.GONE);
@@ -241,6 +244,8 @@ public class DebtDetailActivity extends BaseActivity {
                 });
                 return;
             }
+            // LUỒNG 5 · Trả nợ bằng VietQR · Bước 3/8: Nén ảnh chuyển khoản rồi gửi lên Firebase Storage (users/{uid}/proof/...), nhận lại URL.
+            //   → FirestoreLedgerRepository.uploadImage, rồi markPaid
             runOnUiThread(() -> repo().uploadImage(jpeg, "proof", url -> markPaid(creditor, url), err -> {
                 app().hideLoading();
                 toast(err);
@@ -250,6 +255,8 @@ public class DebtDetailActivity extends BaseActivity {
 
     private void markPaid(String creditor, String proofUrl) {
         app().showLoading(this);
+        // LUỒNG 5 · Trả nợ bằng VietQR · Bước 4/8: "Tôi đã chuyển" kèm URL ảnh.
+        //   → FirestoreLedgerRepository.debtAction
         repo().markPaid(debtKey, me(), proofUrl, () -> {
             app().hideLoading();
             toast("Đã báo " + creditor + (proofUrl != null ? " kèm ảnh chuyển khoản" : "") + ". Chờ xác nhận.");
@@ -265,6 +272,7 @@ public class DebtDetailActivity extends BaseActivity {
     }
 
     private void act(Action action, String okMessage) {
+        // LUỒNG 5 · Trả nợ bằng VietQR · Bước 8/8: Người nhận xem ảnh rồi bấm "Đã nhận tiền" (CONFIRM) hoặc "Chưa nhận được" (DISPUTE): cùng đường bước 5 → 7.
         repo().applyDebtAction(debtKey, action, me(), () -> toast(okMessage), this::toast);
     }
 

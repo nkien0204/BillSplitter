@@ -36,6 +36,8 @@ public final class ReceiptScanner {
             return;
         }
         TextRecognizer recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        // LUỒNG 7 · Chụp hoá đơn · Bước 2/4: ML Kit đọc chữ ngay trên máy (không gửi ảnh đi đâu), trả về từng dòng kèm vị trí.
+        //   → ReceiptParser.rows rồi ReceiptParser.parse
         recognizer.process(image)
                 .addOnSuccessListener(text -> listener.onResult(ReceiptParser.parse(ReceiptParser.rows(fragments(text)))))
                 .addOnFailureListener(e -> listener.onError("Không đọc được chữ trên ảnh. Thử chụp thẳng, đủ sáng."))

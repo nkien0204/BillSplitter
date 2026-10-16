@@ -98,6 +98,9 @@ public class FirestoreLedgerRepository implements LedgerRepository {
         this.notifications = sink;
         this.prefs = context.getApplicationContext().getSharedPreferences(PREFS, Context.MODE_PRIVATE);
         this.localRepo = new LocalLedgerRepository(dao, this::sendToInbox);
+        // LUỒNG 1 · Đăng nhập · Bước 4/5: Firebase báo đăng nhập/đăng xuất. Có tài khoản → bắt đầu nghe dữ liệu của tài khoản đó (LUỒNG 2).
+        //   Đăng xuất → gỡ luồng nghe, xoá dữ liệu cũ trên máy.
+        //   → startListening
         auth.addAuthStateListener(a -> {
             FirebaseUser u = a.getCurrentUser();
             mirrorExec.execute(() -> {
@@ -114,6 +117,8 @@ public class FirestoreLedgerRepository implements LedgerRepository {
 
     // ================================================================ đọc: Firestore → Room
 
+    // LUỒNG 2 · Đồng bộ Firestore → màn hình · Bước 1/6: Mở 3 luồng nghe: các nhóm có mình (activeMemberIds), hộp thư của mình, hồ sơ của mình.
+    //   → onGroups, onInbox, watchUser
     private void startListening(String uid) {
         if (uid.equals(listeningUid)) return;
         stopListening(false);
@@ -155,6 +160,9 @@ public class FirestoreLedgerRepository implements LedgerRepository {
         if (clear) dao.clearAll();
     }
 
+    // LUỒNG 2 · Đồng bộ Firestore → màn hình · Bước 2/6: Danh sách nhóm đổi: với mỗi nhóm mới thì nghe thêm hoá đơn + trạng thái nợ (watchGroup),
+    //   với mỗi thành viên thì nghe hồ sơ (watchUser: tên, QR nhận tiền). Nhóm mất thì gỡ.
+    //   → scheduleRebuild
     private void onGroups(QuerySnapshot snap, FirebaseFirestoreException err) {
         if (err != null || snap == null) {
             Log.w(TAG, "Không nghe được danh sách nhóm", err);
@@ -243,6 +251,8 @@ public class FirestoreLedgerRepository implements LedgerRepository {
      * Bật thông báo cho tin mới từ máy khác. Lần nghe đầu tiên của phiên: báo những tin mới hơn lần
      * trước đã thấy (tới trong lúc app tắt); lần đầu cài app thì chỉ ghi nhớ. Sau đó: mọi tin vừa thêm.
      */
+    // LUỒNG 6 · Thông báo · Bước 3/5: App đang mở: luồng nghe hộp thư thấy tin mới → bật thông báo trên máy.
+    //   → NotificationHelper.onMessage
     private void announce(String uid, QuerySnapshot snap) {
         String key = "seenInboxAt_" + uid;
         long seen = prefs.getLong(key, -1);
@@ -281,6 +291,9 @@ public class FirestoreLedgerRepository implements LedgerRepository {
     }
 
     /** Dựng lại toàn bộ Room từ những gì đang nghe được, trong một giao dịch. */
+    // LUỒNG 2 · Đồng bộ Firestore → màn hình · Bước 3/6: Gom mọi tài liệu đang nghe thành dòng Room (toUser, toBill, toStatus...) và thay toàn bộ Room
+    //   trong một giao dịch. Chờ đủ lần nghe đầu (waiting) để không xoá nhầm dữ liệu đang tải.
+    //   → Room phát LiveData → LocalLedgerRepository
     private void rebuild() {
         if (listeningUid == null || !waiting.isEmpty()) return;
         String uid = listeningUid;
@@ -584,6 +597,8 @@ public class FirestoreLedgerRepository implements LedgerRepository {
     }
 
     /** Tin LocalLedgerRepository soạn cho người khác: ghi vào hộp thư của họ trên Firestore. */
+    // LUỒNG 6 · Thông báo · Bước 2/5: Ghi tin vào hộp thư người nhận: users/{người nhận}/inbox. Rules bắt fromId đúng là mình.
+    //   → máy người nhận: onInbox (app mở) hoặc Cloud Function (app tắt)
     private void sendToInbox(String recipientId, String recipientName, String message, String billId, String debtKey) {
         String uid = me();
         if (uid == null || recipientId == null || recipientId.equals(uid) || isGuestId(recipientId)) return;
@@ -636,6 +651,8 @@ public class FirestoreLedgerRepository implements LedgerRepository {
                 return;
             }
             try {
+                // LUỒNG 3 · Tạo nhóm và mời · Bước 2/7: Tra đúng một số: phones/{số} → uid → users/{uid}. Rules cấm liệt kê nên không dò được danh bạ.
+                //   → quay lại CreateGroupActivity, hiện người vừa tìm
                 DocumentSnapshot p = read(db.collection("phones").document(phone).get());
                 String uid = p.exists() ? p.getString("uid") : null;
                 if (uid == null) {
@@ -686,6 +703,8 @@ public class FirestoreLedgerRepository implements LedgerRepository {
                     onMain(onGroupId, g);
                     return;
                 }
+                // LUỒNG 3 · Tạo nhóm và mời · Bước 7/7: Mã → id nhóm, rồi chỉ thêm đúng mình vào memberIds/activeMemberIds (arrayUnion).
+                //   Rules joinsSelf chặn mọi thay đổi khác. Chờ LUỒNG 2 kéo nhóm về rồi mở màn nhóm.
                 await(groupRef(g).update(
                     "memberIds", FieldValue.arrayUnion(userId),
                     "activeMemberIds", FieldValue.arrayUnion(userId)));
@@ -847,6 +866,9 @@ public class FirestoreLedgerRepository implements LedgerRepository {
             invite.put("groupId", id);
             WriteBatch batch = db.batch();
             batch.set(groupRef(id), f);
+            // LUỒNG 3 · Tạo nhóm và mời · Bước 5/7: Chép nhóm lên Firestore: groups/{id} và inviteCodes/{mã} trong một lô (cùng thành công hoặc cùng hỏng).
+            //   Rules: người tạo phải là chính mình và có tên trong nhóm.
+            //   → máy các thành viên thấy nhóm qua LUỒNG 2
             batch.set(db.collection("inviteCodes").document(String.valueOf(f.get("inviteCode"))), invite);
             await(batch.commit());
         }, () -> {
@@ -875,6 +897,9 @@ public class FirestoreLedgerRepository implements LedgerRepository {
                 Set<String> after = new HashSet<>();
                 for (DebtStatusEntity s : dao.statusesOfBillNow(id)) after.add(s.debtKey);
                 WriteBatch batch = db.batch();
+                // LUỒNG 4 · Thêm hoá đơn · Bước 5/7: Chép hoá đơn (kèm món trong mảng items) lên groups/{g}/bills/{id}; khoản bị đổi số tiền ghi PENDING.
+                //   Một lô ghi.
+                //   → firestore.rules, match /bills
                 batch.set(groupRef(b.groupId).collection("bills").document(id), billFields(b));
                 for (String key : before) {
                     if (after.contains(key)) continue;
@@ -934,6 +959,8 @@ public class FirestoreLedgerRepository implements LedgerRepository {
                 BillEntity b = dao.billNow(billId);
                 DebtStatusEntity s = dao.statusNow(debtKey);
                 if (b == null || s == null) return;
+                // LUỒNG 5 · Trả nợ bằng VietQR · Bước 7/8: Chép trạng thái mới lên groups/{g}/statuses/{billId}_{debtorId}, kèm ảnh chuyển khoản.
+                //   → firestore.rules validStep; máy người nhận thấy qua LUỒNG 2 và nhận thông báo (LUỒNG 6)
                 await(groupRef(b.groupId).collection("statuses").document(statusId(billId, debtorId))
                     .set(statusFields(billId, debtorId, s.status, proof)));
             }, done, onError), onError);

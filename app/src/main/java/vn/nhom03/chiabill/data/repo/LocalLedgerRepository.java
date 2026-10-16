@@ -64,6 +64,8 @@ public final class LocalLedgerRepository implements LedgerRepository {
     public LocalLedgerRepository(AppDao dao, EventSink sink) {
         this.dao = dao;
         this.sink = sink;
+        // LUỒNG 2 · Đồng bộ Firestore → màn hình · Bước 4/6: Mỗi bảng Room là một LiveData; bảng nào đổi thì dựng lại AppSnapshot (rebuild bên dưới).
+        //   → AppSnapshot
         snapshot.addSource(dao.users(), v -> {
             users = v;
             rebuild();
@@ -570,6 +572,8 @@ public final class LocalLedgerRepository implements LedgerRepository {
             g.name = name.trim();
             g.createdBy = creatorId;
             g.createdAt = now;
+            // LUỒNG 3 · Tạo nhóm và mời · Bước 4/7: Tạo id nhóm, mã mời 6 ký tự, tài khoản khách; ghi vào Room; soạn tin "đã thêm bạn vào nhóm".
+            //   → FirestoreLedgerRepository.createGroup (phần push)
             g.inviteCode = newInviteCode();
             dao.upsertGroup(g);
 
@@ -615,6 +619,9 @@ public final class LocalLedgerRepository implements LedgerRepository {
         Callback<String> onError
     ) {
         io.execute(() -> {
+            // LUỒNG 4 · Thêm hoá đơn · Bước 4/7: Kiểm luật: còn ở nhóm, chia hợp lệ, sửa thì phải là người tạo hoặc người trả.
+            //   Ghi Room; khoản nào đổi số tiền thì về "chưa trả"; soạn tin cho từng người cần trả (LUỒNG 6).
+            //   → FirestoreLedgerRepository.saveBill (phần push)
             if (!activeMemberIds(in.groupId).contains(actorId)) {
                 onMain(onError, "Bạn không còn ở trong nhóm này.");
                 return;
@@ -861,6 +868,9 @@ public final class LocalLedgerRepository implements LedgerRepository {
                 debtorId,
                 be.payerId
             );
+            // LUỒNG 5 · Trả nợ bằng VietQR · Bước 5/8: Máy trạng thái thanh toán quyết định bước này có hợp lệ không, theo vai trò người bấm
+            //   (người nợ / người nhận). Hợp lệ thì ghi Room và soạn tin cho bên kia.
+            //   → PaymentStateMachine.canApply
             if (!PaymentStateMachine.canApply(from, action, role)) {
                 onMain(
                     onError,
@@ -939,6 +949,8 @@ public final class LocalLedgerRepository implements LedgerRepository {
     // ---------------------------------------------------------------- nội bộ
 
     /** Chạy trên luồng io. Khách không có app nên không nhận thông báo trong app. */
+    // LUỒNG 6 · Thông báo · Bước 1/5: Mọi tin ("thêm hoá đơn", "đã chuyển", "đã nhận"...) được soạn ở đây rồi giao cho EventSink.
+    //   → FirestoreLedgerRepository.sendToInbox
     private void notifyUser(
         String recipientId,
         String message,

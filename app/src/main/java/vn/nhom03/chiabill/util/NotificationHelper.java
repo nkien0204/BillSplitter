@@ -48,6 +48,7 @@ public final class NotificationHelper implements EventSink {
     @SuppressLint("MissingPermission") // canPost() đã kiểm quyền; SecurityException vẫn được bắt
     @Override
     public void onMessage(String recipientId, String recipientName, String message, String billId, String debtKey) {
+        // LUỒNG 6 · Thông báo · Bước 5/5: Hiện thông báo; bấm vào thì mở thẳng khoản nợ hoặc hoá đơn (MainActivity đọc DEBT_KEY/BILL_ID).
         if (!canPost()) return; // tin vẫn nằm trong hộp thư của người nhận
         Intent open = new Intent(app, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP)

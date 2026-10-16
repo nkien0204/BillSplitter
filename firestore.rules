@@ -94,6 +94,9 @@ service cloud.firestore {
         && ((me() in resource.data.activeMemberIds && removesOnlySelf() && keepsOwner()) || joinsSelf());
       allow delete: if signedIn() && resource.data.createdBy == me();
 
+      // LUỒNG 4 · Thêm hoá đơn · Bước 6/7: Firestore kiểm lại phía máy chủ: là thành viên, người trả thuộc nhóm,
+      //   chỉ người tạo hoặc người trả được sửa.
+      //   → máy các thành viên nhận hoá đơn qua LUỒNG 2
       match /bills/{b} {
         function validBill() {
           let d = request.resource.data;

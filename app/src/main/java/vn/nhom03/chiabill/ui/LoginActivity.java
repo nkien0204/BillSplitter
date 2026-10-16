@@ -39,6 +39,8 @@ public class LoginActivity extends BaseActivity {
      * Đã có token: hỏi server xem còn hợp lệ không. Còn → vào thẳng màn chính; bị từ chối → xoá
      * session và hiện màn đăng nhập; không liên lạc được server (mất mạng, 5xx) → vẫn vào màn chính.
      */
+    // LUỒNG 1 · Đăng nhập · Bước 5/5: Mở app lần sau: còn phiên Firebase thì vào thẳng màn chính, không hỏi mật khẩu.
+    //   → FirebaseAuthRepository.me
     private void autoLogin() {
         b.getRoot().setVisibility(View.INVISIBLE);
         app()
@@ -76,6 +78,8 @@ public class LoginActivity extends BaseActivity {
             return;
         }
 
+        // LUỒNG 1 · Đăng nhập · Bước 1/5: Bấm "Đăng nhập": gửi số điện thoại + mật khẩu xuống AuthRepository. (Đăng ký: askRegister, cùng đường.)
+        //   → FirebaseAuthRepository.login
         ((vn.nhom03.chiabill.ChiaBillApp) getApplication()).showLoading(this);
         ((vn.nhom03.chiabill.ChiaBillApp) getApplication())
             .authRepository()
@@ -99,6 +103,8 @@ public class LoginActivity extends BaseActivity {
                             .repository()
                             .saveUserNow(user);
 
+                        // LUỒNG 1 · Đăng nhập · Bước 3/5: Đúng mật khẩu: lưu uid vào SessionManager và mở màn chính.
+                        //   → đồng thời Firebase báo "đã đăng nhập" cho FirestoreLedgerRepository (constructor)
                         session().signIn(result.user.id, result.token);
                         openMain();
                     }

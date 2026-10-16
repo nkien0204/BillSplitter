@@ -55,6 +55,8 @@ public class MainActivity extends BaseActivity {
         b.bottomNav.setSelectedItemId(tab); // gọi listener → show(tab)
         renderedUser = me();
 
+        // LUỒNG 2 · Đồng bộ Firestore → màn hình · Bước 6/6: Màn hình chỉ "quan sát" AppSnapshot: dữ liệu đổi ở bất kỳ máy nào thì render chạy lại.
+        //   Mọi màn khác (nhóm, hoá đơn, khoản nợ) làm y hệt.
         repo().snapshot().observe(this, this::render);
         askNotificationPermissionOnce();
     }

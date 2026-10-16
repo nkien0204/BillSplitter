@@ -41,6 +41,7 @@ public class SettleActivity extends BaseActivity {
         repo().snapshot().observe(this, this::render);
     }
 
+    // LUỒNG 8 · Số dư và tất toán · Bước 4/4: Màn "Tất toán nhóm" hiện danh sách ai chuyển cho ai bao nhiêu; tab Khoản nợ dùng owedTo/owedBy.
     private void render(AppSnapshot s) {
         if (userMissing(s)) return;
         GroupEntity g = s.group(groupId);

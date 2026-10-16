@@ -83,6 +83,9 @@ public class FirebaseAuthRepository implements AuthRepository {
             callback.onError("INVALID_CREDENTIALS");
             return;
         }
+        // LUỒNG 1 · Đăng nhập · Bước 2/5: Số điện thoại → email giả 09xx@chiabill.app → Firebase Auth kiểm mật khẩu, rồi đọc tên ở users/{uid}.
+        //   (Đăng ký: register ghi thêm users/{uid} và phones/{số} trong một lô.)
+        //   → quay lại LoginActivity, onSuccess
         auth.signInWithEmailAndPassword(emailOf(phone), password)
             .addOnSuccessListener(result -> {
                 String uid = result.getUser().getUid();
