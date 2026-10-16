@@ -1,3 +1,5 @@
 plugins {
     id 'com.android.application' version '8.7.3' apply false
+    // Đọc app/google-services.json (tải từ Firebase Console) thành cấu hình Firebase cho app
+    id 'com.google.gms.google-services' version '4.4.2' apply false
 }

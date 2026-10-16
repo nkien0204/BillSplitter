@@ -2,6 +2,14 @@ plugins {
     id 'com.android.application'
 }
 
+// Firebase cần app/google-services.json (Firebase Console > Project settings > Your apps).
+// Chưa có tệp thì vẫn build được để CI kiểm tra code, nhưng app sẽ báo lỗi ngay khi mở.
+if (file('google-services.json').exists()) {
+    apply plugin: 'com.google.gms.google-services'
+} else {
+    logger.warn('app/google-services.json chưa có: bản build này không kết nối được Firebase.')
+}
+
 android {
     namespace 'vn.nhom03.chiabill'
     compileSdk 35
@@ -48,7 +56,14 @@ dependencies {
     implementation 'androidx.lifecycle:lifecycle-viewmodel:2.8.7'
     implementation 'androidx.lifecycle:lifecycle-livedata:2.8.7'
 
-    // Networking (Phase 2)
+    // Firebase: đăng nhập, cơ sở dữ liệu Firestore, lưu ảnh, thông báo đẩy
+    implementation platform('com.google.firebase:firebase-bom:33.7.0')
+    implementation 'com.google.firebase:firebase-auth'
+    implementation 'com.google.firebase:firebase-firestore'
+    implementation 'com.google.firebase:firebase-storage'
+    implementation 'com.google.firebase:firebase-messaging'
+
+    // OkHttp tải ảnh theo URL (RemoteImage). Retrofit còn lại cho máy chủ cũ, xoá khi tắt Render.
     implementation 'com.squareup.retrofit2:retrofit:2.9.0'
     implementation 'com.squareup.retrofit2:converter-gson:2.9.0'
     implementation 'com.squareup.okhttp3:okhttp:4.12.0'

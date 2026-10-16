@@ -1,0 +1,141 @@
+rules_version = '2';
+
+// Luật phía máy chủ của ChiaBill trên Firestore. App kiểm các luật này trước (LocalLedgerRepository),
+// ở đây kiểm lại để một app bị sửa cũng không đọc hay ghi bậy được.
+// Test: rules-test/ (chạy trên Firebase Emulator, xem rules-test/README.md).
+service cloud.firestore {
+  match /databases/{db}/documents {
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
+    // Số điện thoại đăng nhập: Auth dùng email giả <số>@chiabill.app (FirebaseAuthRepository).
+    function myPhoneIs(phone) { return request.auth.token.email == phone + '@chiabill.app'; }
+    function groupOf(g) { return get(/databases/$(db)/documents/groups/$(g)).data; }
+    function isMember(g) { return signedIn() && me() in groupOf(g).activeMemberIds; }
+
+    // Hồ sơ: ai đăng nhập cũng đọc được theo đúng uid (để hiện tên, QR nhận tiền của thành viên),
+    // nhưng không liệt kê được, và chỉ chủ hồ sơ ghi. Số điện thoại phải đúng số đã đăng nhập.
+    match /users/{uid} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && me() == uid && myPhoneIs(request.resource.data.phone);
+      allow update: if signedIn() && me() == uid
+        && request.resource.data.get('phone', null) == resource.data.get('phone', null);
+      allow delete: if false;
+
+      // Hộp thư: chỉ chủ đọc; ai cũng gửi được nhưng phải ký đúng tên mình.
+      match /inbox/{id} {
+        allow read, delete: if signedIn() && me() == uid;
+        allow create: if signedIn()
+          && request.resource.data.fromId == me()
+          && request.resource.data.message is string
+          && request.resource.data.message.size() <= 500;
+        allow update: if false;
+      }
+    }
+
+    // Tra số điện thoại → uid. Chỉ hỏi đúng một số; không liệt kê để không ai dò được danh bạ.
+    match /phones/{phone} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() && request.resource.data.uid == me() && myPhoneIs(phone);
+      allow update, delete: if false;
+    }
+
+    // Mã mời → id nhóm. Biết mã thì mới biết id nhóm để xin vào.
+    match /inviteCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && getAfter(/databases/$(db)/documents/groups/$(request.resource.data.groupId)).data.inviteCode == code
+        && getAfter(/databases/$(db)/documents/groups/$(request.resource.data.groupId)).data.createdBy == me();
+      allow update: if false;
+      allow delete: if signedIn() && groupOf(resource.data.groupId).createdBy == me();
+    }
+
+    match /groups/{g} {
+      // memberIds: mọi người từng ở nhóm, theo thứ tự (thứ tự quyết định phần dư khi chia, không được đảo).
+      // activeMemberIds: người đang ở nhóm. guests: khách không có tài khoản.
+      function shape(d) {
+        return d.name is string && d.memberIds is list && d.activeMemberIds is list
+          && d.memberIds.toSet().hasAll(d.activeMemberIds.toSet());
+      }
+      function keepsHistory() {
+        let before = resource.data.memberIds;
+        let after = request.resource.data.memberIds;
+        return after.size() >= before.size() && after[0:before.size()] == before;
+      }
+      function keepsIdentity() {
+        return request.resource.data.inviteCode == resource.data.inviteCode
+          && request.resource.data.createdAt == resource.data.createdAt;
+      }
+      // Bớt người khác khỏi nhóm, hay trao quyền quản lý: chỉ người tạo nhóm.
+      function removesOnlySelf() {
+        let removed = resource.data.activeMemberIds.toSet()
+          .difference(request.resource.data.activeMemberIds.toSet());
+        return removed.size() == 0 || removed == [me()].toSet() || resource.data.createdBy == me();
+      }
+      function keepsOwner() {
+        return request.resource.data.createdBy == resource.data.createdBy || resource.data.createdBy == me();
+      }
+      // Người ngoài có mã mời: chỉ được thêm đúng chính mình vào hai danh sách, không đổi gì khác.
+      function joinsSelf() {
+        let before = resource.data;
+        let after = request.resource.data;
+        return after.diff(before).affectedKeys().hasOnly(['memberIds', 'activeMemberIds'])
+          && after.activeMemberIds.toSet() == before.activeMemberIds.toSet().union([me()].toSet())
+          && after.memberIds.toSet() == before.memberIds.toSet().union([me()].toSet());
+      }
+
+      allow read: if signedIn() && me() in resource.data.activeMemberIds;
+      allow create: if signedIn() && shape(request.resource.data)
+        && request.resource.data.createdBy == me()
+        && me() in request.resource.data.activeMemberIds;
+      allow update: if signedIn() && shape(request.resource.data) && keepsHistory() && keepsIdentity()
+        && ((me() in resource.data.activeMemberIds && removesOnlySelf() && keepsOwner()) || joinsSelf());
+      allow delete: if signedIn() && resource.data.createdBy == me();
+
+      match /bills/{b} {
+        function validBill() {
+          let d = request.resource.data;
+          return d.title is string && d.payerId is string && d.payerId in groupOf(g).memberIds
+            && d.items is list && d.items.size() <= 100;
+        }
+        allow read: if isMember(g);
+        allow create: if isMember(g) && validBill() && request.resource.data.createdBy == me();
+        // Sửa: người tạo hoặc người trả (theo bản trước khi sửa); không đổi được người tạo.
+        allow update: if isMember(g) && validBill()
+          && request.resource.data.createdBy == resource.data.createdBy
+          && (resource.data.createdBy == me() || resource.data.payerId == me());
+        allow delete: if isMember(g)
+          && (groupOf(g).createdBy == me() || resource.data.createdBy == me() || resource.data.payerId == me());
+      }
+
+      // Trạng thái từng khoản nợ, id = <billId>_<debtorId>. Đúng máy trạng thái PaymentStateMachine:
+      //   người nợ:  PENDING/DISPUTED → MARKED_PAID
+      //   người nhận: (khác CONFIRMED) → CONFIRMED,  MARKED_PAID → DISPUTED
+      //   người nhận hoặc người tạo hoá đơn: (khác CONFIRMED) → PENDING (khi sửa hoá đơn đổi số tiền)
+      match /statuses/{key} {
+        function billOf(id) { return get(/databases/$(db)/documents/groups/$(g)/bills/$(id)).data; }
+        function from() { return resource == null ? 'PENDING' : resource.data.status; }
+        function validStep() {
+          let d = request.resource.data;
+          let bill = billOf(d.billId);
+          let creditor = bill.payerId;
+          return key == d.billId + '_' + d.debtorId
+            && d.updatedBy == me()
+            && d.debtorId != creditor
+            && ((me() == d.debtorId && d.status == 'MARKED_PAID' && from() in ['PENDING', 'DISPUTED'])
+              || (me() == creditor && d.status == 'CONFIRMED' && from() != 'CONFIRMED')
+              || (me() == creditor && d.status == 'DISPUTED' && from() == 'MARKED_PAID')
+              || ((me() == creditor || me() == bill.createdBy) && d.status == 'PENDING' && from() != 'CONFIRMED'));
+        }
+        allow read: if isMember(g);
+        allow create, update: if isMember(g) && validStep();
+        allow delete: if isMember(g)
+          && (groupOf(g).createdBy == me()
+            || billOf(resource.data.billId).createdBy == me()
+            || billOf(resource.data.billId).payerId == me());
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+rules_version = '2';
+
+// Ảnh hoá đơn và ảnh chuyển khoản: users/<uid>/<bill|proof>/<tên>.jpg
+// Chỉ chủ ảnh tải lên (ảnh dưới 2 MB); người đã đăng nhập xem được qua đường dẫn app lưu trong hoá đơn.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/{kind}/{file} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+        && kind in ['bill', 'proof']
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

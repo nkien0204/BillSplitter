@@ -4,7 +4,7 @@
 
     <!-- Thông báo hoá đơn mới / nhắc trả / xác nhận (Android 13+ xin lúc chạy) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Kết nối Server (Phase 2) -->
+    <!-- Kết nối Firebase -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Quét QR bằng camera (thư viện quét tự xin) và chụp ảnh hoá đơn (xin trước khi mở camera) -->
     <uses-permission android:name="android.permission.CAMERA" />
@@ -57,6 +57,18 @@
             android:name="com.journeyapps.barcodescanner.CaptureActivity"
             android:screenOrientation="fullSensor"
             tools:replace="android:screenOrientation" />
+
+        <!-- Thông báo đẩy Firebase (FCM) khi app đang tắt -->
+        <service
+            android:name=".util.ChiaBillMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="debts" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

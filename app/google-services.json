@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "460926837965",
+    "project_id": "billsplitter-d1364",
+    "storage_bucket": "billsplitter-d1364.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:460926837965:android:3230fe40e064ba2e56b584",
+        "android_client_info": {
+          "package_name": "vn.nhom03.chiabill"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDCewpHLYunNkwbQO4bvKwewv05fnChx0s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

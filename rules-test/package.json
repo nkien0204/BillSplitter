@@ -1,0 +1,12 @@
+{
+  "name": "chiabill-rules-test",
+  "private": true,
+  "description": "Test Firestore và Storage Security Rules trên Firebase Emulator",
+  "scripts": {
+    "test": "firebase emulators:exec --only firestore,storage --project demo-chiabill \"node --test\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^3.0.4",
+    "firebase": "^10.14.1"
+  }
+}

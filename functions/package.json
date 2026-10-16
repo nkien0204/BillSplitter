@@ -1,0 +1,11 @@
+{
+  "name": "chiabill-functions",
+  "private": true,
+  "description": "Gửi thông báo đẩy (FCM) khi có tin mới trong hộp thư. Cần gói Blaze.",
+  "main": "index.js",
+  "engines": { "node": "20" },
+  "dependencies": {
+    "firebase-admin": "^12.7.0",
+    "firebase-functions": "^6.1.1"
+  }
+}
