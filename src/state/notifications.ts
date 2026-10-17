@@ -1,3 +1,4 @@
+import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import type { AppSnapshot } from '@/data/AppSnapshot';
@@ -7,13 +8,17 @@ export const CHANNEL = 'debts';
 type Notifications = typeof import('expo-notifications');
 
 /**
- * expo-notifications nạp module native khi import; Expo Go (SDK 53+) không có đủ module đó nên import
- * ném lỗi và làm sập cả app. Nạp muộn và bắt lỗi: không có thì app chạy bình thường, chỉ không có
- * thông báo hệ thống (tin vẫn nằm trong hộp thư ở tab Tôi). Dev build có đầy đủ.
+ * expo-notifications nạp module native ngay khi import; Expo Go (SDK 53+) không có đủ module đó, và
+ * trình nạp module của Metro báo lỗi nghiêm trọng trước khi try/catch kịp bắt. Nên trong Expo Go ta
+ * không import nó: app chạy bình thường, chỉ không có thông báo hệ thống (tin vẫn nằm trong hộp thư
+ * ở tab Tôi). Dev build / bản phát hành có đầy đủ.
  */
+const inExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
+
 let cached: Notifications | null | undefined;
 function load(): Notifications | null {
   if (cached !== undefined) return cached;
+  if (inExpoGo) return (cached = null);
   try {
     const n = require('expo-notifications') as Notifications;
     n.setNotificationHandler({
