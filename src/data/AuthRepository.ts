@@ -13,6 +13,8 @@ export type AuthErrorCode =
   | 'BAD_REQUEST'
   | 'TOO_MANY_REQUESTS'
   | 'NETWORK_ERROR'
+  | 'AUTH_NOT_ENABLED'
+  | 'BAD_CONFIG'
   | 'UNKNOWN_ERROR';
 
 export class AuthError extends Error {
@@ -41,6 +43,9 @@ const MESSAGES: Record<AuthErrorCode, string> = {
   BAD_REQUEST: 'Yêu cầu không hợp lệ. Vui lòng kiểm tra lại thông tin.',
   TOO_MANY_REQUESTS: 'Thử quá nhiều lần. Vui lòng đợi một lát rồi thử lại.',
   NETWORK_ERROR: 'Không kết nối được máy chủ. Kiểm tra mạng rồi thử lại.',
+  AUTH_NOT_ENABLED:
+    'Đăng nhập bằng Email/Mật khẩu chưa được bật trong Firebase. Vào Authentication › Sign-in method để bật.',
+  BAD_CONFIG: 'Cấu hình Firebase sai hoặc thiếu. Kiểm tra file .env rồi chạy lại: npx expo start -c',
   UNKNOWN_ERROR: 'Đã xảy ra lỗi không xác định. Vui lòng thử lại!',
 };
 

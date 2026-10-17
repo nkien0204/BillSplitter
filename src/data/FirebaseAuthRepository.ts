@@ -27,6 +27,8 @@ export function emailFor(normalizedPhone: string): string {
 function mapFirebaseError(e: unknown): AuthError {
   if (e instanceof AuthError) return e;
   const code = (e as { code?: string })?.code ?? '';
+  // Giữ lại nguyên nhân thật để đọc trong terminal Expo / logcat.
+  if (__DEV__) console.warn('[auth]', code, (e as Error)?.message);
   const table: Record<string, AuthErrorCode> = {
     'auth/email-already-in-use': 'USER_ALREADY_EXISTS',
     'auth/invalid-credential': 'INVALID_CREDENTIALS',
@@ -36,6 +38,12 @@ function mapFirebaseError(e: unknown): AuthError {
     'auth/weak-password': 'WEAK_PASSWORD',
     'auth/too-many-requests': 'TOO_MANY_REQUESTS',
     'auth/network-request-failed': 'NETWORK_ERROR',
+    'auth/operation-not-allowed': 'AUTH_NOT_ENABLED',
+    'auth/configuration-not-found': 'AUTH_NOT_ENABLED',
+    'auth/invalid-api-key': 'BAD_CONFIG',
+    'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'BAD_CONFIG',
+    'auth/app-not-authorized': 'BAD_CONFIG',
+    'auth/internal-error': 'BAD_CONFIG',
     'unavailable': 'NETWORK_ERROR',
     'permission-denied': 'USER_ALREADY_EXISTS', // phones/{số} đã có chủ
   };
