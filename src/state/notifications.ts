@@ -1,39 +1,70 @@
-import * as Notifications from 'expo-notifications';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 import type { AppSnapshot } from '@/data/AppSnapshot';
 
 export const CHANNEL = 'debts';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
+type Notifications = typeof import('expo-notifications');
+
+/**
+ * expo-notifications nạp module native khi import; Expo Go (SDK 53+) không có đủ module đó nên import
+ * ném lỗi và làm sập cả app. Nạp muộn và bắt lỗi: không có thì app chạy bình thường, chỉ không có
+ * thông báo hệ thống (tin vẫn nằm trong hộp thư ở tab Tôi). Dev build có đầy đủ.
+ */
+let cached: Notifications | null | undefined;
+function load(): Notifications | null {
+  if (cached !== undefined) return cached;
+  try {
+    const n = require('expo-notifications') as Notifications;
+    n.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: false,
+        shouldSetBadge: false,
+      }),
+    });
+    cached = n;
+  } catch {
+    cached = null;
+  }
+  return cached;
+}
 
 export async function setupNotifications(): Promise<void> {
-  if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync(CHANNEL, {
+  const n = load();
+  if (n && Platform.OS === 'android') {
+    await n.setNotificationChannelAsync(CHANNEL, {
       name: 'Khoản nợ và hoá đơn',
       description: 'Hoá đơn mới, nhắc trả, xác nhận đã nhận tiền',
-      importance: Notifications.AndroidImportance.DEFAULT,
+      importance: n.AndroidImportance.DEFAULT,
     });
   }
 }
 
-/** Xin quyền một lần. Từ chối thì tin vẫn nằm trong hộp thư ở tab Tôi. */
+/** Xin quyền một lần. Từ chối (hoặc không hỗ trợ) thì tin vẫn nằm trong hộp thư ở tab Tôi. */
 export async function ensurePermission(): Promise<boolean> {
-  const cur = await Notifications.getPermissionsAsync();
+  const n = load();
+  if (!n) return false;
+  const cur = await n.getPermissionsAsync();
   if (cur.granted) return true;
   if (!cur.canAskAgain) return false;
-  return (await Notifications.requestPermissionsAsync()).granted;
+  return (await n.requestPermissionsAsync()).granted;
 }
 
 export async function canPost(): Promise<boolean> {
-  return (await Notifications.getPermissionsAsync()).granted;
+  const n = load();
+  return n ? (await n.getPermissionsAsync()).granted : false;
+}
+
+/** Bấm thông báo → gọi onTap với dữ liệu đính kèm. Trả hàm huỷ đăng ký. */
+export function onNotificationTap(onTap: (data: { billId?: string | null; debtKey?: string | null }) => void): () => void {
+  const n = load();
+  if (!n) return () => undefined;
+  const sub = n.addNotificationResponseReceivedListener((r) => {
+    onTap(r.notification.request.content.data as { billId?: string | null; debtKey?: string | null });
+  });
+  return () => sub.remove();
 }
 
 /**
@@ -57,13 +88,10 @@ export function useInboxNotifications(userId: string | null, snapshot: AppSnapsh
       if (known.has(e.id)) continue;
       known.add(e.id);
       canPost().then((ok) => {
-        if (!ok) return;
-        Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'ChiaBill',
-            body: e.message,
-            data: { billId: e.billId, debtKey: e.debtKey },
-          },
+        const n = load();
+        if (!ok || !n) return;
+        n.scheduleNotificationAsync({
+          content: { title: 'ChiaBill', body: e.message, data: { billId: e.billId, debtKey: e.debtKey } },
           trigger: Platform.OS === 'android' ? { channelId: CHANNEL } : null,
         }).catch(() => undefined);
       });

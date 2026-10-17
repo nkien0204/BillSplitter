@@ -1,10 +1,9 @@
-import * as Notifications from 'expo-notifications';
 import { Stack, router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppProvider, useApp } from '@/state/AppContext';
-import { setupNotifications, useInboxNotifications } from '@/state/notifications';
+import { onNotificationTap, setupNotifications, useInboxNotifications } from '@/state/notifications';
 import { Loading } from '@/ui/components';
 import { colors } from '@/ui/theme';
 
@@ -15,12 +14,10 @@ function Gate() {
   useEffect(() => {
     setupNotifications().catch(() => undefined);
     // Bấm thông báo: mở đúng khoản nợ / hoá đơn.
-    const sub = Notifications.addNotificationResponseReceivedListener((r) => {
-      const d = r.notification.request.content.data as { billId?: string | null; debtKey?: string | null };
+    return onNotificationTap((d) => {
       if (d.debtKey) router.push({ pathname: '/debt/[key]', params: { key: d.debtKey } });
       else if (d.billId) router.push({ pathname: '/bill/[id]', params: { id: d.billId } });
     });
-    return () => sub.remove();
   }, []);
 
   if (!authReady) return <Loading />;
