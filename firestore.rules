@@ -1,0 +1,232 @@
+rules_version = '2';
+
+// ChiaBill. Quy tắc nghiệp vụ nằm trong FirebaseLedgerRepository; file này là lớp chặn cuối
+// khi client bị sửa: ai đọc được gì, ai ghi được gì, và máy trạng thái khoản nợ.
+//
+// Dữ liệu tiền (chia thế nào, ai nợ ai) KHÔNG kiểm ở đây vì rules không chạy được SplitEngine.
+// Những kiểm tra cần tính tiền (không rời nhóm khi còn nợ, không xoá nhóm khi chưa tất toán…)
+// vẫn là của client, đúng như bản Express cũ.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function me() {
+      return request.auth.uid;
+    }
+
+    function groupPath(groupId) {
+      return /databases/$(database)/documents/groups/$(groupId);
+    }
+
+    function isActiveMember(groupId) {
+      return signedIn() && exists(groupPath(groupId))
+        && me() in get(groupPath(groupId)).data.activeMemberIds;
+    }
+
+    function isGroupCreator(groupId) {
+      return signedIn() && exists(groupPath(groupId))
+        && get(groupPath(groupId)).data.createdBy == me();
+    }
+
+    // ---------------------------------------------------------------- tài khoản
+
+    match /users/{userId} {
+      // Chỉ đọc từng tài liệu: không liệt kê, không tìm gần đúng (FR: tra cứu đúng số điện thoại).
+      allow get: if signedIn();
+      allow list: if false;
+
+      // Tài khoản của chính mình, hoặc thành viên khách do mình tạo.
+      allow create: if signedIn()
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 100
+        && (
+          (userId == me() && request.resource.data.guest == false && request.resource.data.phone is string)
+          || (userId.matches('guest-.+') && request.resource.data.guest == true
+              && request.resource.data.phone == null && request.resource.data.createdBy == me())
+        );
+
+      allow update: if signedIn() && userId == me()
+        && request.resource.data.guest == false
+        && request.resource.data.phone == resource.data.phone
+        && request.resource.data.name is string
+        && request.resource.data.name.size() > 0
+        && request.resource.data.name.size() <= 40;
+
+      allow delete: if false;
+    }
+
+    // phone → uid. Tra cứu đúng một số; không liệt kê. Chỉ tạo được cho số trùng với tài khoản của mình.
+    match /phones/{phone} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && phone.matches('0[0-9]{9}')
+        && request.resource.data.uid == me()
+        && getAfter(/databases/$(database)/documents/users/$(me())).data.phone == phone;
+      allow update, delete: if false;
+    }
+
+    // ---------------------------------------------------------------- nhóm
+
+    match /groups/{groupId} {
+      // Chỉ thành viên hiện tại thấy nhóm. Truy vấn phải có where('activeMemberIds', 'array-contains', uid).
+      allow get, list: if signedIn() && me() in resource.data.activeMemberIds;
+
+      allow create: if signedIn()
+        && request.resource.data.createdBy == me()
+        && request.resource.data.memberOrder[0] == me()
+        && request.resource.data.activeMemberIds[0] == me()
+        && request.resource.data.activeMemberIds.hasOnly(request.resource.data.memberOrder)
+        && request.resource.data.inviteCode is string
+        && getAfter(/databases/$(database)/documents/inviteCodes/$(request.resource.data.inviteCode)).data.groupId == groupId;
+
+      allow update: if signedIn() && (
+        // Thành viên thêm một người. memberOrder chỉ được nối thêm, không đổi chỗ người cũ.
+        (
+          me() in resource.data.activeMemberIds
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberOrder', 'activeMemberIds'])
+          && request.resource.data.activeMemberIds.hasAll(resource.data.activeMemberIds)
+          && request.resource.data.activeMemberIds.size() == resource.data.activeMemberIds.size() + 1
+          && request.resource.data.memberOrder.hasAll(resource.data.memberOrder)
+          && request.resource.data.memberOrder.size() <= resource.data.memberOrder.size() + 1
+        )
+        // Tự vào bằng mã mời: joinProofs/{uid}.code phải đúng mã của nhóm.
+        || (
+          !(me() in resource.data.activeMemberIds)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['memberOrder', 'activeMemberIds'])
+          && request.resource.data.activeMemberIds.hasAll(resource.data.activeMemberIds)
+          && me() in request.resource.data.activeMemberIds
+          && request.resource.data.activeMemberIds.size() == resource.data.activeMemberIds.size() + 1
+          && request.resource.data.memberOrder.hasAll(resource.data.memberOrder)
+          && request.resource.data.memberOrder.size() <= resource.data.memberOrder.size() + 1
+          && getAfter(/databases/$(database)/documents/joinProofs/$(me())).data.code == resource.data.inviteCode
+        )
+        // Người tạo nhóm xoá một thành viên khác.
+        || (
+          resource.data.createdBy == me()
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeMemberIds'])
+          && me() in request.resource.data.activeMemberIds
+          && request.resource.data.activeMemberIds.hasOnly(resource.data.activeMemberIds)
+          && request.resource.data.activeMemberIds.size() == resource.data.activeMemberIds.size() - 1
+        )
+        // Tự rời nhóm; người tạo rời thì được chuyển quyền cho một thành viên còn lại.
+        || (
+          me() in resource.data.activeMemberIds
+          && !(me() in request.resource.data.activeMemberIds)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['activeMemberIds', 'createdBy'])
+          && request.resource.data.activeMemberIds.hasOnly(resource.data.activeMemberIds)
+          && request.resource.data.activeMemberIds.size() == resource.data.activeMemberIds.size() - 1
+          && (
+            !request.resource.data.diff(resource.data).affectedKeys().hasAny(['createdBy'])
+            || (resource.data.createdBy == me() && request.resource.data.createdBy in request.resource.data.activeMemberIds)
+          )
+        )
+      );
+
+      allow delete: if signedIn() && resource.data.createdBy == me();
+    }
+
+    // code → groupId, để vào nhóm bằng mã mà không cần liệt kê nhóm.
+    match /inviteCodes/{code} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn()
+        && request.resource.data.groupId is string
+        && getAfter(groupPath(request.resource.data.groupId)).data.createdBy == me()
+        && getAfter(groupPath(request.resource.data.groupId)).data.inviteCode == code;
+      allow update: if false;
+      allow delete: if signedIn() && isGroupCreator(resource.data.groupId);
+    }
+
+    // Bằng chứng người vào nhóm biết mã mời. Rules của groups đọc bằng getAfter(); client không đọc lại.
+    match /joinProofs/{userId} {
+      allow create, update: if signedIn() && userId == me() && request.resource.data.code is string;
+      allow read, delete: if false;
+    }
+
+    // ---------------------------------------------------------------- hoá đơn
+
+    match /bills/{billId} {
+      // resource == null: tài liệu chưa có → trả "không tồn tại" thay vì lỗi quyền (id không đoán được).
+      allow get: if resource == null || isActiveMember(resource.data.groupId);
+      allow list: if isActiveMember(resource.data.groupId);
+
+      allow create: if isActiveMember(request.resource.data.groupId)
+        && request.resource.data.createdBy == me()
+        && request.resource.data.payerId is string
+        && request.resource.data.title is string;
+
+      // Chỉ người tạo hoặc người trả sửa; không chuyển hoá đơn sang nhóm khác hay đổi người tạo.
+      allow update: if isActiveMember(resource.data.groupId)
+        && (resource.data.createdBy == me() || resource.data.payerId == me())
+        && request.resource.data.groupId == resource.data.groupId
+        && request.resource.data.createdBy == resource.data.createdBy;
+
+      allow delete: if resource.data.createdBy == me()
+        || resource.data.payerId == me()
+        || isGroupCreator(resource.data.groupId);
+    }
+
+    match /debtStatuses/{key} {
+      // Khoản chưa có bản ghi = PENDING; đọc tài liệu chưa có phải cho qua (transaction của máy trạng thái).
+      allow get: if resource == null || isActiveMember(resource.data.groupId);
+      allow list: if isActiveMember(resource.data.groupId);
+
+      // Máy trạng thái (PaymentStateMachine): người nợ báo đã chuyển; người được trả xác nhận hoặc báo chưa nhận.
+      allow create, update: if signedIn()
+        && request.resource.data.keys().hasOnly(['billId', 'groupId', 'debtorId', 'status', 'updatedAt'])
+        && key == request.resource.data.billId + ':' + request.resource.data.debtorId
+        && exists(/databases/$(database)/documents/bills/$(request.resource.data.billId))
+        && request.resource.data.groupId
+          == get(/databases/$(database)/documents/bills/$(request.resource.data.billId)).data.groupId
+        && isActiveMember(request.resource.data.groupId)
+        && request.resource.data.debtorId
+          != get(/databases/$(database)/documents/bills/$(request.resource.data.billId)).data.payerId
+        && (
+          (
+            me() == request.resource.data.debtorId
+            && request.resource.data.status == 'MARKED_PAID'
+            && (resource == null || resource.data.status in ['PENDING', 'DISPUTED'])
+          )
+          || (
+            me() == get(/databases/$(database)/documents/bills/$(request.resource.data.billId)).data.payerId
+            && (
+              (request.resource.data.status == 'CONFIRMED' && (resource == null || resource.data.status != 'CONFIRMED'))
+              || (request.resource.data.status == 'DISPUTED' && resource != null && resource.data.status == 'MARKED_PAID')
+            )
+          )
+        );
+
+      // Xoá khi sửa hoá đơn (quay về PENDING) hoặc khi xoá hoá đơn / nhóm. Khoản đã xác nhận chỉ mất khi xoá nhóm.
+      allow delete: if signedIn() && (
+        isGroupCreator(resource.data.groupId)
+        || (
+          resource.data.status != 'CONFIRMED'
+          && exists(/databases/$(database)/documents/bills/$(resource.data.billId))
+          && (
+            get(/databases/$(database)/documents/bills/$(resource.data.billId)).data.createdBy == me()
+            || get(/databases/$(database)/documents/bills/$(resource.data.billId)).data.payerId == me()
+          )
+        )
+      );
+    }
+
+    // ---------------------------------------------------------------- hộp thư
+
+    match /inbox/{id} {
+      allow get: if signedIn() && (resource == null || resource.data.recipientId == me());
+      allow list: if signedIn() && resource.data.recipientId == me();
+      allow create: if signedIn()
+        && request.resource.data.fromId == me()
+        && request.resource.data.recipientId is string
+        && request.resource.data.message is string
+        && request.resource.data.message.size() <= 1000;
+      allow update: if false;
+      allow delete: if signedIn() && resource.data.recipientId == me();
+    }
+  }
+}

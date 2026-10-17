@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "ChiaBill",
+    "slug": "chiabill",
+    "scheme": "chiabill",
+    "version": "0.4.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "vn.nhom03.chiabill",
+      "infoPlist": {
+        "NSCameraUsageDescription": "ChiaBill dùng camera để quét mã QR nhận tiền.",
+        "NSPhotoLibraryUsageDescription": "ChiaBill đọc ảnh QR bạn chọn và lưu ảnh QR thanh toán vào thư viện.",
+        "NSPhotoLibraryAddUsageDescription": "ChiaBill lưu ảnh QR thanh toán vào thư viện."
+      }
+    },
+    "android": {
+      "package": "vn.nhom03.chiabill",
+      "adaptiveIcon": {
+        "backgroundColor": "#0B6B4A",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "ChiaBill dùng camera để quét mã QR nhận tiền."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "debts"
+        }
+      ],
+      "expo-status-bar",
+      "expo-sharing",
+      "@react-native-community/datetimepicker"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

@@ -1,151 +1,92 @@
-# AI Agent Context & Development Guide — ChiaBill (v0.3.0)
+# AI Agent Context & Development Guide — ChiaBill (v0.4.0)
 
-Welcome, AI Agent. This project has pivoted from a React Native template to a **Java Native Android application**. This document provides the essential context to help you navigate the codebase and implement changes consistently.
+This project is a **React Native (Expo, TypeScript) app on Firebase**. It was ported from a Java/Android + Node/Express app (v0.3.0, branch `main`). Business logic is unchanged; only the technology is.
 
-## 📌 Project Overview
+## 📌 Project overview
 
-**ChiaBill** is an Android app for splitting shared expenses. It ensures that money calculations are deterministic and perfectly accurate (zero drift), allowing users to settle debts via **VietQR**.
+**ChiaBill** splits shared expenses with money that is **deterministic and drift-free**, and settles debts through **VietQR**. Accounts are phone number + password (Firebase Auth), data lives in Firestore and is pushed to the UI in real time.
 
-**Current Version:** v0.3.0 (Offline Demo). All accounts exist in one local database for demo purposes.
+## 🗺️ Read first, in order
 
-## 🗺️ Primary Reference Documents
+1. `AGENTS.md` (this file)
+2. `architecture.md` — data model, Firestore collections, request flow
+3. `business-requirements.md` — FR/NFR and status
 
-Before making any changes, read these in order:
+## 🛠️ Stack
 
-1.  `AGENTS.md`: This document (Roadmap, rules, and critical constraints).
-2.  `architecture.md`: Detailed technical stack, Room schema, and `:domain` logic.
-3.  `business-requirements.md`: Functional (FR) and Non-Functional Requirements (NFR) with current implementation status.
+- **Mobile:** React Native 0.88, Expo SDK 58, Expo Router (routes in `src/app/`), TypeScript strict
+- **Backend:** Firebase Auth (email/password, email = `<phone>@phone.chiabill.app`) + Cloud Firestore + `firestore.rules`. No server code.
+- **Expo APIs change every SDK.** Check `node_modules/<pkg>/build/*.d.ts` or https://docs.expo.dev/versions/v58.0.0/ before using one. Add native packages with `npx expo install`, never `npm i`.
+- **Metro reads tsconfig `paths`.** Do not map packages to `.d.ts` files there (see `src/types/firebase-auth-rn.d.ts` for how the RN-only `getReactNativePersistence` type is declared instead).
 
----
+## Layers
 
-## 🛠️ Technical Stack & Architecture
-
-### 1. The Stack
-
-#### Android App
-
-- **Language:** Java 17
-- **Platform:** Android (minSdk 26, targetSdk 35)
-- **Local Storage:** Room 2.6.1 (SQLite)
-- **QR Logic:** ZXing (EMVCo TLV for VietQR)
-- **Testing:** JUnit 5 (on `:domain` module)
-
-#### Backend (Phase 2 - In Progress)
-
-- **Runtime:** Node.js + Express
-- **Database:** SQLite via Sequelize ORM
-- **Authentication:** JWT (JSON Web Tokens) & bcryptjs
-- **Architecture:** Layered (`routes` $\rightarrow$ `controllers` $\rightarrow$ `services` $\rightarrow$ `models`)
-
-### 2. Layered Architecture (Android)
-
-```mermaid
-graph TD
-    UI[UI Layer: Activities/Fragments] --> Repo[Data Layer: LedgerRepository]
-    Repo --> Domain[Domain Layer: Pure Java Logic]
-    Repo --> Room[Storage Layer: Room DB]
-    Domain --> UI
+```
+src/app (screens)  →  src/state (AppContext)  →  src/data (repositories)  →  Firestore
+                                   ↘                       ↘
+                                    └────────────  src/domain (pure TS)  ←──┘
 ```
 
-- **`:domain` Module:** Pure Java. **No Android imports allowed.** Contains all business rules (splitting, ledger, QR codec).
-- **`:app` Module:** Android-specific code. Handles UI, Room database, and the `LocalLedgerRepository` implementation.
+- `src/domain` — **pure TypeScript. No `react-native`, `firebase` or `expo` imports.** All business rules: split engine, allocator, ledger, debt simplifier, payment state machine, VietQR codec, phone/invite code.
+- `src/data` — the only place that touches Firebase. `LedgerRepository` is the single door for the UI; `FirebaseLedgerRepository` implements it. Business errors are `LedgerError` with a Vietnamese user-facing message.
+- `src/app` / `src/ui` — screens and components. **No money maths and no permission checks in components.**
 
----
+## ⚠️ Critical rules
 
-## ⚠️ Critical Development Rules
+### 1. Money (the Golden Rule)
 
-### 1. Money Handling (The Golden Rule)
+- Money is an **integer number of VND** (`number`, always `Number.isSafeInteger`). Never fractions, never `toFixed`.
+- Allocate with `Allocator` (largest remainder). It uses `BigInt` internally because `total × weight` can pass 2^53.
+- Per-person shares are **recomputed** from the bill by `SplitEngine`; they are **never stored**.
 
-- **Data Type:** Use `long` for VND everywhere. **Never** use `double`, `float`, or `BigDecimal` with 2 decimal places for internal calculations.
-- **Allocation:** Use the `Allocator` (largest-remainder method) to ensure the sum of shares always equals the total.
-- **Shares:** Per-person shares are **recomputed** on the fly from the bill; they are **not** stored in the database.
+### 2. Logic placement
 
-### 2. Business Logic Placement
+- Business logic ∈ `src/domain` or the repository. Permissions (can this user delete this bill?) are checked in the repository **and** mirrored in `firestore.rules`. The UI may hide buttons but must not be the only guard.
+- Anything that changes the calculation of a split must have a test in `src/domain/__tests__`.
 
-- **Logic $\in$ `:domain` or Repository.** Never put money calculations or permission checks inside an `Activity` or `Fragment`.
-- **Permissions:** Checks (e.g., "can this user delete this bill?") must happen in `LocalLedgerRepository`, not only in the UI.
-- **`:domain` constraint:** The domain module must not import anything from Android.
+### 3. Group membership order
 
-### 3. Room & Data Stability
+- `groups/{id}.memberOrder` = **everyone who was ever in the group**, append-only (array index = position). `activeMemberIds` = current members. Splitting always uses `memberOrder` (`AppSnapshot.allMembersOf`); UI and permissions use `activeMemberIds` (`membersOf`). Mixing them changes how old bills divide. Re-adding a returning member uses `arrayUnion`, which keeps the old position.
 
-- **Split Order:** Split order must use **all members ever in the group** (`AppSnapshot.allMembersOf`). UI and permissions use active members (`membersOf`). Mixing these up will change the calculation of old bills.
-- **Database Versions:** If you modify a Room entity, you **must** bump the `AppDatabase` version.
-- **Phone Lookup:** Phone lookup is exact match only. No listing or fuzzy search of users.
+### 4. Firestore gotchas (learned the hard way — tests cover them)
 
-## ⚙️ Backend Operations
+- Rules cannot prove access for a query unless the query constrains the field the rule reads: queries on `bills`/`debtStatuses` **must** filter by `groupId`.
+- Child listeners for a group must only start once the group document is confirmed by the server (`!metadata.hasPendingWrites`), and the group listener needs `includeMetadataChanges: true`. See `watchSnapshot.ts`.
+- Reading a document that does not exist must not error in rules (`resource == null ||`), otherwise "not found" turns into `permission-denied`.
+- No `undefined` in documents; use `null`.
+- No `sequelize.sync()`-style shortcuts exist anymore: schema is implicit, so changing a document shape means updating `records.ts`, `docs.ts`, `firestore.rules` and the integration tests together.
 
-> New to the project? Follow **README.md → "Getting started (app + backend)"** for the full setup, including `BACKEND_URL` and the network security config.
+### 5. Phone lookup
 
-When working on the backend (located in `/backend`), follow these operational rules:
+Exact match only (`phones/{phone}` document `get`). No listing, no fuzzy search; `users` and `phones` deny `list` in the rules.
 
-### 1. Running the Server
+## Commands
 
-- **Installation:** Run `npm install` inside the `backend/` directory.
-- **Configuration:** Copy `backend/config/config.json.sample` to `backend/config/config.json` and update the credentials.
-- **Execution:** Use `npm start` for production or `npm run dev` for development (with nodemon).
-
-### 2. Database Migrations (Mandatory)
-
-Do **not** use `sequelize.sync()`. Use the migration tool to ensure data stability across environments:
-
-- **Apply Migrations:** `npx sequelize-cli db:migrate` (Run this after pulling new code).
-- **Rollback Migration:** `npx sequelize-cli db:migrate:undo`.
-- **Create Migration:** `npx sequelize-cli migration:generate --name <migration_name>`.
-
-### 3. Development Workflow
-
-- **New Feature:** Create Migration $\rightarrow$ Update Model $\rightarrow$ Implement Service $\rightarrow$ Create Controller $\rightarrow$ Define Route.
-- **Money:** Ensure the backend implements the exact same `largest-remainder` allocation as the `:domain` module to prevent drift between client and server.
-
----
-
-## 🚀 Roadmap
-
-### Phase 1 — offline app (done in v0.3.0)
-
-- [x] Domain: integer-VND split engine (equal, itemised, custom amounts, percentage), VAT/fee, rounding
-- [x] Domain: ledger, debt simplifier, payment state machine
-- [x] Domain: VietQR encode/parse with CRC, phone numbers, invite codes
-- [x] 52 unit/property tests on `:domain`
-- [x] Room schema v3, `LedgerRepository` + local implementation, demo data
-- [x] Accounts by phone number, groups, add member by phone, invite code, remove member, leave group
-- [x] Bills: category, date, 4 split modes, edit/delete with permission checks
-- [x] History filters (category, member, period)
-- [x] Debt screen with VietQR, save/share QR, notifications, settle-up plan
-- [x] Profile: rename, receiving QR (image, camera, paste, manual)
-
-### Phase 1 — still to do
-
-- [ ] Run `connectedDebugAndroidTest` on a device and keep the log
-- [ ] Scan a generated QR with a real banking app and record evidence
-- [ ] Usability sessions: time to add an expense (NFR3), SUS score (NFR4)
-
-### Phase 2 — multi-device (optional)
-
-- [ ] Choose: Node/Express + JWT (per `architecture.md` §8) or Firebase
-- [ ] `RemoteLedgerRepository` (or `FirebaseLedgerRepository`) behind the existing interface
-- [ ] Offline queue with `pendingSync`, last-write-wins
-- [ ] Real Room migrations instead of destructive fallback
-
----
+```bash
+npm install
+npx expo start                 # run the app
+npm test                       # unit tests (domain + ui logic)
+npm run test:int               # integration tests on Firebase emulators (needs Java 11+)
+npm run typecheck
+npm run emulators              # start Auth + Firestore emulators for manual testing
+npx firebase deploy --only firestore   # rules + indexes
+```
 
 ## ✅ Definition of Done
 
-- [ ] **Domain Tests:** Any change to split/balance logic must have a corresponding test in `:domain` (`gradlew :domain:test`).
-- [ ] **Build Check:** `gradlew :app:assembleDebug` builds successfully.
-- [ ] **Requirement Mapping:** The feature maps to an FR in `business-requirements.md` and its status column is updated.
-- [ ] **Consistency:** No Android imports in the `:domain` module.
+- [ ] `npm test` and `npm run typecheck` pass.
+- [ ] If you touched `src/data` or `firestore.rules`: `npm run test:int` passes (add a case that tries the forbidden thing directly against Firestore).
+- [ ] `npx expo export --platform android` bundles (catches Metro/Firebase resolution problems).
+- [ ] The feature maps to an FR in `business-requirements.md` and its status is updated.
+- [ ] `src/domain` still has no framework imports.
 
----
+## 🚀 Roadmap
 
-## 🛠️ Mobile Deployment Troubleshooting
+Done: domain port with identical tests · Firestore data model + rules · repository with all v0.3.0 business rules · Auth · every screen · local notifications from the inbox.
 
-### Signature Mismatch (`INSTALL_FAILED_UPDATE_INCOMPATIBLE`)
-
-If you see this error while running `./gradlew installDebug`, it means a version of the app was previously installed on the device from a **different machine** (with a different debug signing key).
-
-**The Solution:**
-You must completely uninstall the existing app from the device before installing your version.
-
-- **Via Device:** Long-press app icon $\rightarrow$ Uninstall $\rightarrow$ Remove all data.
-- **Via Terminal:** `adb uninstall vn.nhom03.chiabill`
+To do:
+- [ ] Run on a physical device; scan a generated QR with a real banking app and record evidence
+- [ ] Usability sessions (time to add an expense — NFR3, SUS — NFR4)
+- [ ] Cloud Functions: FCM push, and server-side enforcement of the money rules (leave/delete with open debts)
+- [ ] Offline support (persistent cache / outbox) — React Native has no IndexedDB, so this needs a custom cache
+- [ ] Deep link for invite codes (`chiabill://join/CODE`; the `scheme` is already set)

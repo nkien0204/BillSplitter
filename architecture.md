@@ -1,249 +1,113 @@
-# System Architecture — ChiaBill (Bill Splitter)
-
-This document describes how the app is built, so a new developer or an AI coding agent can change it consistently. Requirements and their status are in `business-requirements.md`.
-
----
+# System Architecture — ChiaBill (v0.4.0, React Native + Firebase)
 
 ## 1. Tech stack
 
-| Layer         | Technology                                                                                  |
-| ------------- | ------------------------------------------------------------------------------------------- |
-| Language      | Java 17 (course requirement: Java native)                                                   |
-| Platform      | Android, minSdk 26 (8.0), targetSdk/compileSdk 35                                           |
-| Build         | Gradle 8.9 wrapper, Android Gradle Plugin 8.7.3                                             |
-| UI            | Activities + Fragments, XML layouts, ViewBinding, Material Components 1.12                  |
-| State         | Room LiveData → one immutable `AppSnapshot`; ViewModel keeps the bill draft across rotation |
-| Local storage | Room 2.6.1 (SQLite), annotation processor                                                   |
-| QR            | ZXing core 3.5.3 (encode/decode) + zxing-android-embedded 4.3.0 (camera scan)               |
-| Tests         | JUnit 5 on `:domain`; AndroidX instrumented tests on Room                                   |
-| Backend       | Node.js + Express + Sequelize (SQLite), see `backend/` and README "Getting started"; plan in §8                                                          |
+| Concern | Choice |
+|---------|--------|
+| App | React Native 0.88, Expo SDK 58, Expo Router, TypeScript strict |
+| Auth | Firebase Auth, email/password; email = `<normalised phone>@phone.chiabill.app` |
+| Database | Cloud Firestore, realtime listeners, Security Rules |
+| QR | `react-native-qrcode-svg` (encode), `expo-camera` (scan + decode from image) |
+| Notifications | `expo-notifications`, local notifications triggered by new inbox documents |
+| Tests | Jest + `jest-expo`; Firebase Emulator Suite for integration |
 
----
-
-## 2. High-level architecture
+## 2. Layers
 
 ```
-┌──────────────────────────── Android app (single APK) ───────────────────────────┐
-│                                                                                  │
-│  ui/  Activities, Fragments ──reads──►  AppSnapshot (immutable, LiveData)        │
-│        │                                     ▲                                   │
-│        │ calls                                │ rebuilt on every table change     │
-│        ▼                                     │                                   │
-│  data/repo  LedgerRepository (interface) ◄── LocalLedgerRepository ── Room DB     │
-│        │                                                                         │
-│        ▼ uses                                                                    │
-│  :domain  (pure Java, no Android imports)                                        │
-│     split/ SplitEngine, Allocator   ledger/ Ledger, DebtSimplifier,              │
-│     qr/ VietQrCodec, Crc16, Tlv      PaymentStateMachine   user/ PhoneNumber,    │
-│                                                             InviteCode           │
-└──────────────────────────────────────────────────────────────────────────────────┘
+src/app (Expo Router screens)
+   │ useLedger() / useAction()
+src/state/AppContext ── auth state + live AppSnapshot
+   │
+src/data ── LedgerRepository (interface) ◄── FirebaseLedgerRepository ──► Firestore
+   │            AuthRepository ◄── FirebaseAuthRepository ──► Firebase Auth
+   │            watchSnapshot: Firestore listeners → AppSnapshot
+src/domain ── pure TypeScript, imported by both data and UI
 ```
 
-- **All business rules live in `:domain`** and in the repository. Screens never compute money themselves; they call `SplitEngine` / `Ledger` through the snapshot.
-- **Screens only depend on `LedgerRepository`.** Swapping `LocalLedgerRepository` for a remote one (Phase 2) does not touch the UI.
-- **Offline multi-account demo:** every demo account lives in the same Room database. Switching account in the app shows that user's view, so "Minh adds a bill → Đạt sees the debt" works on one phone. A notification addressed to another account switches to that account when tapped.
+**Request flow.** UI → `repo.xxx()` (a Promise) → validate with domain rules → `writeBatch` / `runTransaction` to Firestore → Firestore listeners fire (immediately for local writes, then on server ack) → `watchSnapshot` rebuilds one immutable `AppSnapshot` including the `Ledger` → React context → screens re-render. Errors are `LedgerError` (user-facing Vietnamese message) or the Firebase error.
 
----
-
-## 3. Modules and packages
+## 3. Source layout
 
 ```
-settings.gradle        :domain, :app
-domain/src/main/java/vn/nhom03/chiabill/domain/
-  model/    Money, Bill, BillSpec, BillItem, Category, SplitMode, SplitResult, ShareLine, Debt, DebtStatus, Transfer
-  split/    Allocator (largest remainder), SplitEngine
+src/domain/
+  model/    types.ts (SplitMode, DebtStatus, Category, Debt, ShareLine, Transfer), Money, BillItem, BillSpec, Bill, SplitResult
+  split/    Allocator (largest remainder, BigInt), SplitEngine (split, check, parsePercent, formatPercent)
   ledger/   Ledger, DebtSimplifier, PaymentStateMachine
-  qr/       VietQrCodec, Tlv, Crc16, PaymentTarget, BankDirectory, TransferContent, QrError, QrParseResult
+  qr/       Tlv, Crc16, VietQrCodec, TransferContent, PaymentTarget, BankDirectory, QrError
   user/     PhoneNumber, InviteCode
-domain/src/test/java/…  AllocatorTest, SplitEngineTest, LedgerTest, VietQrCodecTest, PhoneNumberTest, InviteCodeTest
-
-app/src/main/java/vn/nhom03/chiabill/
-  ChiaBillApp            wires DB, repository, session, notifications
-  data/db/               Room entities + AppDao + AppDatabase
-  data/repo/             LedgerRepository, LocalLedgerRepository, AppSnapshot, Mappers, BillInput, DemoSeeder
-  ui/                    LoginActivity, MainActivity (tabs), CreateGroupActivity, GroupDetailActivity,
-                         BillEditActivity, BillDetailActivity, DebtDetailActivity, SettleActivity, QrSetupActivity
-  ui/tabs/               GroupsFragment, DebtsFragment, ProfileFragment
-  ui/bill/               BillDraft, BillEditViewModel
-  util/                  SessionManager, NotificationHelper, QrImages, QrExport, Nav, Ui
-app/src/androidTest/…    DemoSeederTest (Room in-memory)
+src/data/
+  records.ts        Firestore document shapes
+  docs.ts           DocumentSnapshot → record (defaults for missing fields)
+  mappers.ts        record → domain Bill / PaymentTarget
+  AppSnapshot.ts    users, groups, bills, statuses, inbox + Ledger; the only thing UI reads
+  watchSnapshot.ts  composes the listeners
+  LedgerRepository.ts / FirebaseLedgerRepository.ts
+  AuthRepository.ts / FirebaseAuthRepository.ts
+  firebase.ts       app/auth/firestore singletons (+ emulator switch)
+src/state/          AppContext, notifications
+src/ui/             theme, components, bill/billDraft
+src/app/            login, (tabs)/{index,debts,profile}, create-group, group/[id], group/settle,
+                    bill/[id], bill/edit, debt/[key], qr-setup
 ```
 
 ### 3.1 Screens → functional requirements
 
-| Screen                                                               | FRs              |
-| -------------------------------------------------------------------- | ---------------- |
-| LoginActivity (pick / create account)                                | FR1              |
-| GroupsFragment (list, create, join by code)                          | FR2, FR3         |
-| GroupDetailActivity (members, invite code, history + filters, leave) | FR4, FR8, FR14   |
-| BillEditActivity (4 split modes, category, date, live preview)       | FR5, FR6, FR7    |
-| BillDetailActivity                                                   | FR7, FR9         |
-| DebtDetailActivity (VietQR, mark paid / confirm / dispute, share QR) | FR11, FR16, FR19 |
-| SettleActivity (net balances, fewest transfers)                      | FR10, FR11       |
-| ProfileFragment (rename, receiving QR, inbox)                        | FR13, FR17, FR18 |
+| Screen | FR |
+|--------|----|
+| `login` | FR1 |
+| `(tabs)/index` (groups, join by code) | FR2, FR3 |
+| `create-group`, `group/[id]` | FR2, FR4, FR8, FR14 |
+| `bill/edit`, `bill/[id]` | FR5, FR6, FR7 |
+| `group/settle` | FR9, FR10, FR11 |
+| `(tabs)/debts`, `debt/[key]` | FR11, FR12, FR16, FR18, FR19 |
+| `(tabs)/profile`, `qr-setup` | FR13, FR17 |
 
----
+## 4. Firestore data model
 
-## 4. Data model (Room, database version 3)
+| Collection / doc | Fields | Notes |
+|------------------|--------|-------|
+| `users/{uid}` | name, phone (normalised, null for guests), colorIndex, guest, bankBin, accountNo, accountName, qrUpdatedAt, createdAt, createdBy (guests) | Guests have id `guest-<autoId>`. `get` for signed-in users, **no `list`**. |
+| `phones/{phone}` | uid | Exact lookup + uniqueness. Created in the same batch as `users/{uid}`; rules check `getAfter(users/uid).phone == phone`. |
+| `groups/{id}` | name, inviteCode, createdBy, createdAt, **memberOrder[]**, **activeMemberIds[]** | `memberOrder` append-only, index = position (replaces the Room `members.position`). `activeMemberIds` replaces `members.active`. Readable only by active members. |
+| `inviteCodes/{code}` | groupId | Code → group without listing groups. |
+| `joinProofs/{uid}` | code, groupId, at | Write-only. A joiner is not yet a member, so the rules verify knowledge of the code with `getAfter(joinProofs/uid).code == group.inviteCode`. |
+| `bills/{id}` | groupId, title, payerId, mode, subtotal, participants[], vatPercent, servicePercent, rounding, category, shares{}, items[{name,price,consumers[]}], createdBy, createdAt (= spend date), updatedAt | Items are embedded (replaces the `bill_items` table). Per-person shares are **not** stored. |
+| `debtStatuses/{billId:debtorId}` | billId, groupId, debtorId, status, updatedAt | Missing = `PENDING`. `groupId`/`debtorId` are new so rules and queries can use them. |
+| `inbox/{id}` | recipientId, fromId, message, billId, debtKey, createdAt | Index `recipientId ASC, createdAt DESC` (`firestore.indexes.json`). |
 
-```mermaid
-erDiagram
-    users ||--o{ members : "belongs to"
-    bill_groups ||--o{ members : "contains"
-    bill_groups ||--o{ bills : "has"
-    users ||--o{ bills : "pays"
-    bills ||--o{ bill_items : "contains (Itemized mode)"
-    bills ||--o{ debt_status : "generates"
-    users ||--o{ debt_status : "owes"
-    users ||--o{ inbox : "receives"
+Mapping from v0.3.0 (Room): `UserEntity`→`users`, `GroupEntity`+`MemberEntity`→`groups`, `BillEntity`+`BillItemEntity`→`bills`, `DebtStatusEntity`→`debtStatuses`, `InboxEntity`→`inbox`. `participantsCsv`/`sharesCsv`/`consumersCsv` became real arrays and maps.
 
-    users {
-        string id PK
-        string name
-        string phone UK
-        string bankBin
-        string accountNo
-        string accountName
-        int colorIndex
-        boolean guest
-    }
+## 5. Security Rules (summary)
 
-    bill_groups {
-        string id PK
-        string name
-        string inviteCode UK
-        string createdBy FK
-        long createdAt
-    }
+- Only active members read a group, its bills and statuses.
+- Bills: created by an active member (`createdBy == uid`); updated by creator or payer, never moved to another group; deleted by creator, payer or group creator.
+- `debtStatuses`: the **payment state machine** is in the rules — only the debtor may write `MARKED_PAID` (from PENDING/DISPUTED); only the payer may write `CONFIRMED` (not from CONFIRMED) or `DISPUTED` (only from MARKED_PAID).
+- Groups: members may add one member; an outsider may add only themselves with a valid join proof; the creator may remove one member; anyone may leave (creator hands over ownership).
+- `inbox`: only the recipient reads or deletes; anyone may create with `fromId == uid`.
+- Not enforceable in rules (needs `SplitEngine`): "don't leave/remove/delete while debts are open", and amounts in bills. Those stay in `FirebaseLedgerRepository`.
 
-    members {
-        string groupId PK, FK
-        string userId PK, FK
-        int position "Order for deterministic splitting"
-        boolean active "False if member left group"
-    }
+## 6. Money and splitting (`src/domain`)
 
-    bills {
-        string id PK
-        string groupId FK
-        string payerId FK
-        string title
-        long subtotal
-        string mode "EQUAL, ITEMIZED, CUSTOM, PERCENT"
-        string participantsCsv "userId:value,..."
-        string sharesCsv "userId:value,..."
-        int vatPercent
-        int servicePercent
-        long rounding
-        string category
-        long createdAt "Expense date"
-    }
+Unchanged from v0.3.0: integer VND; equal / itemised / custom / percent (basis points, total 10 000); VAT and service fee on the subtotal rounded half-up and allocated by largest remainder in proportion to each base; debtors rounded to 1đ or 1 000đ with the remainder going to the payer (round-down fallback if the payer would go negative). Splits run over **`memberOrder`** so old bills never change when people leave or join.
 
-    bill_items {
-        string billId PK, FK
-        int position
-        string name
-        long price
-        string consumersCsv "userId,userId..."
-    }
+## 7. Ledger and settlement
 
-    debt_status {
-        string debtKey PK "billId:debtorId"
-        string billId FK
-        string status "PENDING, MARKED_PAID, CONFIRMED, DISPUTED"
-        long updatedAt
-    }
+`Ledger(groupMembers, bills, statuses)` derives debts (payer = creditor), balances and the greedy settlement plan. `PaymentStateMachine` is unchanged; its transitions are also encoded in the rules and applied inside a Firestore transaction so two taps cannot skip a state.
 
-    inbox {
-        string id PK
-        string recipientId FK
-        string message
-        string billId FK
-        string debtKey FK
-        long createdAt
-    }
-```
+## 8. VietQR
 
-Upgrades use `fallbackToDestructiveMigration()`: installing a new schema wipes local data and the demo data is re-seeded. Acceptable for a demo; Phase 2 must add real migrations.
+`VietQrCodec.encode/parse` (NAPAS GUID `A000000727`, CRC-16/CCITT-FALSE) is a line-for-line port; vectors and 5 000 round-trips are tested. The QR image is drawn by `react-native-qrcode-svg`; saving/sharing writes the PNG to the cache and uses `expo-media-library` / `expo-sharing`.
 
-| Table         | Key columns                                                                                                                                                                                                | Notes                                                                                     |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| `users`       | `id` PK, `name`, `phone` (unique), `guest`, `bankBin`, `accountNo`, `accountName`, `qrUpdatedAt`, `colorIndex`                                                                                             | Guest = person without the app (no phone, gets QR by share)                               |
-| `bill_groups` | `id` PK, `name`, `createdBy`, `inviteCode` (unique), `createdAt`                                                                                                                                           | `createdBy` = manager; handed to the next member if they leave                            |
-| `members`     | (`groupId`, `userId`) PK, `position`, `active`                                                                                                                                                             | Leaving/removal sets `active = false`; the row stays so old bills split exactly as before |
-| `bills`       | `id` PK, `groupId`, `title`, `payerId`, `mode`, `subtotal`, `participantsCsv`, `sharesCsv`, `vatPercent`, `servicePercent`, `rounding`, `category`, `createdBy`, `createdAt` (= expense date), `updatedAt` | `mode` ∈ EQUAL, ITEMIZED, CUSTOM, PERCENT                                                 |
-| `bill_items`  | `billId`, `position`, `name`, `price`, `consumersCsv`                                                                                                                                                      | ITEMIZED only                                                                             |
-| `debt_status` | `debtKey` = `billId:debtorId` PK, `billId`, `status`, `updatedAt`                                                                                                                                          | Missing row = PENDING. Deterministic key → writes are idempotent                          |
-| `inbox`       | `id`, `recipientId`, `message`, `billId`, `debtKey`, `createdAt`                                                                                                                                           | In-app notifications                                                                      |
+## 9. Notifications
 
-**Per-person shares are never stored.** They are recomputed by `SplitEngine` from the bill, which is deterministic. Only payment status is stored.
+The inbox collection is the source of truth. `useInboxNotifications` compares each snapshot's inbox to the ids already seen (the first snapshot is the baseline) and posts a local notification for every new item; tapping it routes to `debt/[key]` or `bill/[id]`. Delivery while the app is fully closed needs FCM + Cloud Functions (not implemented).
 
-`sharesCsv` format: `userId:value,…` — VND for CUSTOM, basis points (1 % = 100) for PERCENT.
+## 10. Conventions
 
----
+- Vietnamese UI text and comments; identifiers in English.
+- Domain files import only from `src/domain`. Data files import domain and Firebase. Screens import state, ui and domain.
+- Every write goes through `LedgerRepository`; screens call it through `useAction()` so errors surface as toasts.
 
-## 5. Money and splitting (`:domain`)
+## 11. Out of scope / known gaps
 
-- Money is `long` VND everywhere. No floating point, no DECIMAL.
-- `Allocator.allocate(total, weights)` — largest-remainder method; the parts always sum to `total`; ties go to the lower index (deterministic).
-- `SplitEngine.split(spec, memberOrder)`:
-  1. **Base share** by mode: EQUAL (subtotal split over participants), ITEMIZED (each item split over its consumers), CUSTOM (typed amounts; subtotal = their sum), PERCENT (subtotal allocated by basis-point weights).
-  2. **VAT and service fee** computed on the subtotal (round half up) and allocated in proportion to base shares.
-  3. **Rounding:** debtors rounded to 1 đ or 1 000 đ; the payer absorbs the difference. If that would make the payer negative, debtors are rounded down instead.
-  - Invariants (property-tested on 10 000 random bills): sum of shares = total; no negative share; same input → same output.
-- `SplitEngine.check(spec, memberOrder)` returns a user-facing error or `null` (e.g. percentages not totalling 100 %). Both the form and the repository call it.
-- `memberOrder` = **all** members who were ever in the group (active or not), by position. This is what keeps old bills stable when someone leaves.
-
-## 6. Ledger and settlement
-
-- `Ledger` builds one `Debt` per (bill, debtor ≠ payer, amount > 0) and computes `owedTo`, `owedBy`, `netBalances`.
-- Balance = sum of open debts (not CONFIRMED) — equivalent to the "paid − owed + settlements" formula in the first draft, but settlements are per debt so there is no separate settlements table to drift.
-- `DebtSimplifier` greedily matches largest creditor with largest debtor: at most n − 1 transfers.
-- `PaymentStateMachine`: `PENDING → MARKED_PAID` (debtor) `→ CONFIRMED | DISPUTED` (payer); `DISPUTED → MARKED_PAID` (debtor) or `→ CONFIRMED` (payer); the payer can also confirm straight from `PENDING` (cash). Every transition is checked in the repository against the actor's role, not trusted from the UI.
-- Editing a bill resets non-confirmed debts whose amount or payer changed back to PENDING and notifies the debtor.
-
-## 7. VietQR
-
-- Encoded on device as EMVCo TLV: `00` format, `01` = 12 (dynamic, with amount), `38` NAPAS (`A000000727`, bank BIN, account, `QRIBFTTA`), `53` = 704, `54` amount, `58` = VN, `62.08` transfer note (`CB <bill> <debtor>`, ASCII), `63` CRC-16/CCITT-FALSE.
-- Parsing a user's own QR rejects: not EMV, truncated, bad CRC, not NAPAS VietQR, unsupported service.
-- No bank account data leaves the device; there is no network call.
-
----
-
-## 8. Phase 2: backend (from the first draft, kept as the plan)
-
-Add a server only if multi-device sync is required. Plan:
-
-- **Server:** Node.js + Express + SQLite via ORM, JWT auth (bcrypt passwords), layered `routes → controllers → services → models`, error shape `{ "error": { "code", "message" } }`. `balance.service.js` must port the same rules as `SplitEngine` (integer VND, largest remainder) and reuse its test vectors.
-- **Android:** `RemoteLedgerRepository implements LedgerRepository` using Retrofit + OkHttp over HTTPS; Room stays as the offline cache with a `pendingSync` flag, last-write-wins. `ChiaBillApp` switches implementation; screens unchanged.
-- **Cheaper alternative:** Firebase Auth (phone OTP) + Firestore with Security Rules, as `FirebaseLedgerRepository`.
-
-| Method       | Endpoint                                                           | FR            |
-| ------------ | ------------------------------------------------------------------ | ------------- |
-| POST         | /api/auth/register, /api/auth/login                                | FR1           |
-| GET / PUT    | /api/users/me                                                      | FR13          |
-| GET          | /api/users/by-phone/:phone (exact match only)                      | FR2           |
-| POST / GET   | /api/groups                                                        | FR2           |
-| POST         | /api/groups/join (invite code)                                     | FR3           |
-| GET          | /api/groups/:id                                                    | FR4           |
-| DELETE       | /api/groups/:id/members/:userId                                    | FR4           |
-| POST         | /api/groups/:id/leave                                              | FR14          |
-| POST / GET   | /api/groups/:id/bills (filters: category, member, from, to)        | FR5, FR6, FR8 |
-| PUT / DELETE | /api/bills/:id                                                     | FR7           |
-| GET          | /api/groups/:id/balances                                           | FR9, FR10     |
-| POST         | /api/debts/:billId/:debtorId/actions (MARK_PAID, CONFIRM, DISPUTE) | FR11, FR12    |
-
----
-
-## 9. Conventions
-
-- Java: camelCase; one public class per file; Vietnamese user-facing strings and comments are fine.
-- Money: `long` VND only. Never `double`.
-- Dates: epoch milliseconds (`long`); formatted on display.
-- IDs: String. Demo data uses readable ids (`dat`, `g1`, `b-lau`); new rows use UUIDs.
-- Room writes run on the repository's single background executor; callbacks are posted to the main thread.
-- Any change to split or balance rules needs a domain test.
-
-## 10. Out of scope
-
-Real bank payment processing (settling is confirmed by people, not by the bank), multi-currency, iOS, production deployment.
+Offline writes, push when closed, server-enforced money rules, deep-link invites, photo avatars. See README → *Known limits*.

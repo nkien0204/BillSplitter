@@ -1,22 +1,19 @@
-# Android & General
-.gradle/
-build/
-bin/
-/local.properties
-.idea/
-*.iml
+# General
 .DS_Store
-captures/
 *.keystore
 *.jks
-keystore.properties
-build-log.txt
-outputs/**/*.apk
-outputs/**/*.zip
 node_modules/
 
-# Backend
-backend/config/config.json
-backend/database.sqlite
-backend/node_modules/
-backend/.env
+# Expo / React Native
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.env
+.env*.local
+/ios
+/android
+*.tsbuildinfo
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
