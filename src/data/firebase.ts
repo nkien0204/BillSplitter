@@ -6,16 +6,20 @@ import { FirebaseAuthRepository } from './FirebaseAuthRepository';
 import { FirebaseLedgerRepository } from './FirebaseLedgerRepository';
 
 /**
- * Cấu hình Firebase lấy từ biến môi trường EXPO_PUBLIC_* (xem .env.example).
- * Các giá trị này không phải bí mật: bảo mật nằm ở firestore.rules.
+ * Cấu hình Firebase. Giá trị trong .env (EXPO_PUBLIC_*) được ưu tiên; không có thì dùng mặc định bên dưới,
+ * để bản APK build ở máy nào cũng nối vào cùng một Firebase project.
+ *
+ * Đây là cấu hình "web app" của Firebase, vốn công khai (nằm trong mọi app đã phát hành). Bảo mật nằm ở
+ * firestore.rules và Firebase Auth, không phải ở việc giấu các giá trị này.
+ * Phải viết process.env.EXPO_PUBLIC_X đầy đủ từng biến: Metro chỉ thay thế được dạng tĩnh này.
  */
 const config = {
-  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY ?? 'AIzaSyBWXfBHpxrgxX4Oy_kZw2fk7MMXSkwMBDc',
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN ?? 'bill-splitter-eb11a.firebaseapp.com',
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID ?? 'bill-splitter-eb11a',
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ?? 'bill-splitter-eb11a.firebasestorage.app',
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID ?? '262554336633',
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID ?? '1:262554336633:web:1a5e9415f6109c5d96c3a8',
 };
 
 export const useEmulator = process.env.EXPO_PUBLIC_USE_EMULATOR === 'true';
