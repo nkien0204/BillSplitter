@@ -19,7 +19,7 @@
     "android": {
       "package": "vn.nhom03.chiabill",
       "adaptiveIcon": {
-        "backgroundColor": "#0B6B4A",
+        "backgroundColor": "#8FDCE6",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
