@@ -12,7 +12,11 @@
     "test": "jest",
     "test:domain": "jest src/domain",
     "test:int": "firebase emulators:exec --only auth,firestore --project demo-chiabill \"jest --config jest.int.config.js --runInBand --forceExit\"",
-    "emulators": "firebase emulators:start --only auth,firestore --project demo-chiabill"
+    "emulators": "firebase emulators:start --only auth,firestore --project demo-chiabill",
+    "build:apk": "eas build --platform android --profile preview",
+    "build:apk:local": "bash scripts/build-apk-local.sh",
+    "install:apk": "bash scripts/install-apk.sh",
+    "release:usb": "expo run:android --variant release"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
