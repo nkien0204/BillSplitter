@@ -11,8 +11,8 @@ const G = ['dat', 'minh', 'lan', 'hung'];
 function demo(st: Map<string, DebtStatus>): Ledger {
   const gm = new Map([['g1', G]]);
   const bills = [
-    new Bill('b1', 'g1', 'Lẩu', 1, 'minh', new BillSpec({ payerId: 'minh', mode: 'EQUAL', subtotal: 1_140_000, participants: G, vatPercent: 8, servicePercent: 0, rounding: 1000 })),
-    new Bill('b3', 'g1', 'Xăng', 2, 'lan', new BillSpec({ payerId: 'lan', mode: 'EQUAL', subtotal: 420_000, participants: G, vatPercent: 0, servicePercent: 0, rounding: 1000 })),
+    new Bill('b1', 'g1', 'Lẩu', 1, 'minh', new BillSpec({ payerId: 'minh', subtotal: 1_140_000, participants: G })),
+    new Bill('b3', 'g1', 'Xăng', 2, 'lan', new BillSpec({ payerId: 'lan', subtotal: 420_000, participants: G })),
   ];
   return new Ledger(gm, bills, st);
 }
@@ -23,14 +23,14 @@ describe('Ledger', () => {
     expect(l.debts()).toHaveLength(6);
     const d = l.debt(debtKeyOf('b1', 'dat'));
     expect(d?.creditorId).toBe('minh');
-    expect(d?.amount).toBe(308_000);
+    expect(d?.amount).toBe(285_000);
     expect(d?.status).toBe('PENDING');
-    expect(l.owedBy('dat', 'g1')).toBe(308_000 + 105_000);
+    expect(l.owedBy('dat', 'g1')).toBe(285_000 + 105_000);
   });
 
   it('khoản đã xác nhận không tính vào số dư', () => {
     const l = demo(new Map<string, DebtStatus>([[debtKeyOf('b3', 'dat'), 'CONFIRMED']]));
-    expect(l.owedBy('dat', 'g1')).toBe(308_000);
+    expect(l.owedBy('dat', 'g1')).toBe(285_000);
   });
 
   it('tất toán gộp về ít giao dịch', () => {

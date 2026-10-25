@@ -1,17 +1,5 @@
 /** Kiểu dữ liệu miền: không phụ thuộc React Native hay Firebase. */
 
-export type SplitMode =
-  /** Chia đều tạm tính cho những người tham gia. */
-  | 'EQUAL'
-  /** Mỗi món chia đều cho những người dùng món đó. */
-  | 'ITEMIZED'
-  /** Mỗi người một số tiền tự nhập (VND). Tạm tính = tổng các số đó. */
-  | 'CUSTOM'
-  /** Chia tạm tính theo phần trăm; lưu theo phần vạn (1% = 100), tổng phải đúng 10 000. */
-  | 'PERCENT';
-
-export const SPLIT_MODES: readonly SplitMode[] = ['EQUAL', 'ITEMIZED', 'CUSTOM', 'PERCENT'];
-
 export type DebtStatus =
   /** Chưa trả. */
   | 'PENDING'
@@ -63,10 +51,6 @@ export function parseCategory(s: string | null | undefined): Category {
   return CATEGORIES.find((c) => c === s) ?? 'KHAC';
 }
 
-export function parseSplitMode(s: string | null | undefined): SplitMode {
-  return SPLIT_MODES.find((m) => m === s) ?? 'EQUAL';
-}
-
 /** Một lần chuyển khoản đề xuất khi tất toán nhóm. */
 export interface Transfer {
   readonly fromId: string;
@@ -74,17 +58,11 @@ export interface Transfer {
   readonly amount: number;
 }
 
-/** Phần của một người trong một hoá đơn, kèm cách tính. */
+/** Phần của một người trong một hoá đơn. */
 export interface ShareLine {
   readonly memberId: string;
-  /** Phần gốc (món hoặc chia đều), chưa phí. */
-  readonly base: number;
-  /** VAT + phí phục vụ phân bổ theo tỉ lệ phần gốc. */
-  readonly fee: number;
-  /** Số tiền cuối cùng sau làm tròn. */
+  /** Số tiền người này phải chịu (VND). */
   readonly amount: number;
-  /** amount − (base + fee). Âm hoặc dương vài trăm/nghìn đồng. */
-  readonly roundingAdj: number;
 }
 
 /** Khoản nợ của một người với người trả của một hoá đơn. Khoá tất định: billId:debtorId. */

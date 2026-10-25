@@ -1,12 +1,10 @@
 /** Cổng vào duy nhất của lớp miền. Thuần TypeScript: không import React Native hay Firebase. */
 export * from './model/types';
 export { Money } from './model/Money';
-export { BillItem } from './model/BillItem';
 export { BillSpec, type BillSpecInit } from './model/BillSpec';
 export { Bill } from './model/Bill';
 export { SplitResult } from './model/SplitResult';
-export { Allocator } from './split/Allocator';
-export { SplitEngine, PERCENT_TOTAL } from './split/SplitEngine';
+export { SplitEngine } from './split/SplitEngine';
 export { Ledger } from './ledger/Ledger';
 export { DebtSimplifier } from './ledger/DebtSimplifier';
 export { PaymentStateMachine, type Action, type Role } from './ledger/PaymentStateMachine';

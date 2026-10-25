@@ -30,8 +30,8 @@ src/domain ── pure TypeScript, imported by both data and UI
 
 ```
 src/domain/
-  model/    types.ts (SplitMode, DebtStatus, Category, Debt, ShareLine, Transfer), Money, BillItem, BillSpec, Bill, SplitResult
-  split/    Allocator (largest remainder, BigInt), SplitEngine (split, check, parsePercent, formatPercent)
+  model/    types.ts (DebtStatus, Category, Debt, ShareLine, Transfer), Money, BillSpec, Bill, SplitResult
+  split/    SplitEngine (split, check, equal)
   ledger/   Ledger, DebtSimplifier, PaymentStateMachine
   qr/       Tlv, Crc16, VietQrCodec, TransferContent, PaymentTarget, BankDirectory, QrError
   user/     PhoneNumber, InviteCode
@@ -71,7 +71,7 @@ src/app/            login, (tabs)/{index,debts,profile}, create-group, group/[id
 | `groups/{id}` | name, inviteCode, createdBy, createdAt, **memberOrder[]**, **activeMemberIds[]** | `memberOrder` append-only, index = position (replaces the Room `members.position`). `activeMemberIds` replaces `members.active`. Readable only by active members. |
 | `inviteCodes/{code}` | groupId | Code → group without listing groups. |
 | `joinProofs/{uid}` | code, groupId, at | Write-only. A joiner is not yet a member, so the rules verify knowledge of the code with `getAfter(joinProofs/uid).code == group.inviteCode`. |
-| `bills/{id}` | groupId, title, payerId, mode, subtotal, participants[], vatPercent, servicePercent, rounding, category, shares{}, items[{name,price,consumers[]}], createdBy, createdAt (= spend date), updatedAt | Items are embedded (replaces the `bill_items` table). Per-person shares are **not** stored. |
+| `bills/{id}` | groupId, title, payerId, subtotal, participants[], category, createdBy, createdAt (= spend date), updatedAt | `subtotal` is split equally among `participants`. Per-person shares are **not** stored. |
 | `debtStatuses/{billId:debtorId}` | billId, groupId, debtorId, status, updatedAt | Missing = `PENDING`. `groupId`/`debtorId` are new so rules and queries can use them. |
 | `inbox/{id}` | recipientId, fromId, message, billId, debtKey, createdAt | Index `recipientId ASC, createdAt DESC` (`firestore.indexes.json`). |
 
@@ -88,7 +88,13 @@ Mapping from v0.3.0 (Room): `UserEntity`→`users`, `GroupEntity`+`MemberEntity`
 
 ## 6. Money and splitting (`src/domain`)
 
-Unchanged from v0.3.0: integer VND; equal / itemised / custom / percent (basis points, total 10 000); VAT and service fee on the subtotal rounded half-up and allocated by largest remainder in proportion to each base; debtors rounded to 1đ or 1 000đ with the remainder going to the payer (round-down fallback if the payer would go negative). Splits run over **`memberOrder`** so old bills never change when people leave or join.
+Integer VND, one method: **equal split**. `SplitEngine.split(spec, memberOrder)`:
+
+1. take the participants in `memberOrder` order;
+2. `equal(total, n)`: everyone gets `floor(total / n)`; the `total mod n` leftover đồng go one each to the first participants (so shares differ by at most 1đ and always add up to the total);
+3. the payer always gets a line (amount 0 if they did not take part).
+
+There is no VAT, service fee or rounding step (removed to keep the app simple; v0.3.0 had itemised/custom/percent splits too). Splits run over **`memberOrder`** so old bills never change when people leave or join. Bills saved by older builds with another mode are read as an equal split of their `subtotal`.
 
 ## 7. Ledger and settlement
 

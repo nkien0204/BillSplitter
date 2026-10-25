@@ -1,7 +1,7 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { Text, View } from 'react-native';
-import { Money, SplitEngine, categoryLabel, debtKeyOf } from '@/domain';
+import { Money, categoryLabel, debtKeyOf } from '@/domain';
 import { useAction, useLedger } from '@/state/AppContext';
 import { Avatar, Button, Card, Label, Loading, Muted, type RowData, Rows, Screen, confirm } from '@/ui/components';
 import { PILL_NEUTRAL, colors, statusColors, statusLabel } from '@/ui/theme';
@@ -20,33 +20,16 @@ export default function BillDetail() {
   const bill = s.ledger().bill(billId)!;
   const be = s.billRecord(billId)!;
   const g = s.group(bill.groupId);
-  const spec = bill.spec;
   const r = s.ledger().splitOf(billId)!;
-
-  const calc: string[] = [`Tạm tính ${Money.format(r.subtotal)}`];
-  calc[0] +=
-    spec.mode === 'ITEMIZED' ? ` · chia theo ${spec.items.length} món`
-    : spec.mode === 'CUSTOM' ? ' · mỗi người một số tiền'
-    : spec.mode === 'PERCENT' ? ' · chia theo phần trăm'
-    : ` · chia đều ${spec.participants.length} người`;
-  if (r.vat > 0) calc.push(`VAT ${spec.vatPercent}%: ${Money.format(r.vat)}`);
-  if (r.service > 0) calc.push(`Phí phục vụ ${spec.servicePercent}%: ${Money.format(r.service)}`);
-  calc.push(spec.rounding > 1 ? 'Người nợ làm tròn tới 1.000đ, phần lẻ dồn cho người trả' : 'Làm tròn tới 1đ');
+  const calc = `Tổng ${Money.format(r.total)} · chia đều ${bill.spec.participants.length} người`;
 
   const rows: RowData[] = r.lines.map((l) => {
     const id = l.memberId;
-    let sub = '';
-    const pct = spec.shares.get(id);
-    if (spec.mode === 'PERCENT' && pct != null) sub += SplitEngine.formatPercent(pct) + ' · ';
-    sub += 'gốc ' + Money.dots(l.base);
-    if (l.fee !== 0) sub += ' · phí ' + Money.dots(l.fee);
-    if (l.roundingAdj !== 0) sub += ' · làm tròn ' + (l.roundingAdj > 0 ? '+' : '') + Money.dots(l.roundingAdj);
     const row: RowData = {
       key: id,
       avatarName: s.name(id),
       colorIndex: s.colorIndex(id),
       title: s.name(id) + (id === me ? ' (bạn)' : ''),
-      subtitle: sub,
       amount: Money.format(l.amount),
     };
     if (id === bill.payerId) return { ...row, pill: 'Người trả', pillColors: PILL_NEUTRAL };
@@ -72,7 +55,7 @@ export default function BillDetail() {
           <Text style={{ fontSize: 24, fontWeight: '800' }}>{Money.format(r.total)}</Text>
         </View>
       </Card>
-      <Muted>{calc.join('\n')}</Muted>
+      <Muted>{calc}</Muted>
 
       <Label>Phần từng người</Label>
       <Rows rows={rows} />

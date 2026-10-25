@@ -1,7 +1,6 @@
 import type { DocumentData, DocumentSnapshot, QueryDocumentSnapshot } from 'firebase/firestore';
 import { colorIndexFor } from './mappers';
 import type {
-  BillItemRecord,
   BillRecord,
   DebtStatusRecord,
   GroupRecord,
@@ -49,31 +48,14 @@ export function groupFrom(s: Snap): GroupRecord {
 
 export function billFrom(s: Snap): BillRecord {
   const d = s.data() ?? {};
-  const items: BillItemRecord[] = Array.isArray(d.items)
-    ? d.items.map((it: Record<string, unknown>) => ({
-        name: str(it?.name),
-        price: num(it?.price),
-        consumers: strArray(it?.consumers),
-      }))
-    : [];
-  const shares: Record<string, number> = {};
-  if (d.shares && typeof d.shares === 'object') {
-    for (const [k, v] of Object.entries(d.shares as Record<string, unknown>)) shares[k] = num(v);
-  }
   return {
     id: s.id,
     groupId: str(d.groupId),
     title: str(d.title),
     payerId: str(d.payerId),
-    mode: str(d.mode, 'EQUAL'),
     subtotal: num(d.subtotal),
     participants: strArray(d.participants),
-    vatPercent: num(d.vatPercent),
-    servicePercent: num(d.servicePercent),
-    rounding: num(d.rounding, 1000),
     category: str(d.category, 'KHAC'),
-    shares,
-    items,
     createdBy: strOrNull(d.createdBy),
     createdAt: num(d.createdAt),
     updatedAt: num(d.updatedAt),
