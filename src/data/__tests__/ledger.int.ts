@@ -1,5 +1,5 @@
 import { arrayUnion, collection, doc, getDoc, getDocs, setDoc, updateDoc, writeBatch } from 'firebase/firestore';
-import { BillItem, BillSpec, PaymentTarget } from '@/domain';
+import { BillSpec, PaymentTarget } from '@/domain';
 import { Device, errorOf } from './harness';
 
 const devices: Device[] = [];
@@ -10,8 +10,8 @@ async function newUser(name: string): Promise<Device> {
 }
 afterAll(() => Promise.all(devices.map((d) => d.close())));
 
-const equal = (payer: string, subtotal: number, participants: string[], vat = 0, svc = 0, rounding = 1000) =>
-  new BillSpec({ payerId: payer, mode: 'EQUAL', subtotal, participants, vatPercent: vat, servicePercent: svc, rounding });
+const equal = (payer: string, subtotal: number, participants: string[]) =>
+  new BillSpec({ payerId: payer, subtotal, participants });
 
 /** Nhóm "Đà Lạt" gồm Đạt (người tạo), Minh, Lan và khách Hùng. */
 async function dalat() {
@@ -163,99 +163,57 @@ describe('nhóm', () => {
 });
 
 describe('hoá đơn và khoản nợ', () => {
-  it('lẩu gà: chia đều 4 người, VAT 8%, người trả Minh — đúng số liệu bản Java', async () => {
+  it('lẩu gà: chia đều 4 người, người trả Minh', async () => {
     const { dat, minh, lan, hung, groupId } = await dalat();
     const members = [dat.id, minh.id, lan.id, hung];
     const billId = await minh.ledger.saveBill(
-      { id: null, groupId, title: 'Lẩu gà lá é', spec: equal(minh.id, 1_140_000, members, 8, 0, 1000), category: 'AN_UONG', date: 0 },
+      { id: null, groupId, title: 'Lẩu gà lá é', spec: equal(minh.id, 1_140_000, members), category: 'AN_UONG', date: 0 },
       minh.id,
     );
     const s = await dat.until((x) => x.ledger().bill(billId) != null, 'hoá đơn');
     const r = s.ledger().splitOf(billId)!;
-    expect(r.total).toBe(1_231_200);
-    expect(r.lineOf(dat.id)?.amount).toBe(308_000);
-    expect(r.lineOf(minh.id)?.amount).toBe(307_200);
+    expect(r.total).toBe(1_140_000);
+    expect(r.lineOf(dat.id)?.amount).toBe(285_000);
+    expect(r.lineOf(minh.id)?.amount).toBe(285_000);
     expect(r.isBalanced()).toBe(true);
 
-    expect(s.ledger().owedBy(dat.id, groupId)).toBe(308_000);
-    expect(s.ledger().owedTo(minh.id, groupId)).toBe(308_000 * 3 /* Đạt, Lan, Hùng */);
+    expect(s.ledger().owedBy(dat.id, groupId)).toBe(285_000);
+    expect(s.ledger().owedTo(minh.id, groupId)).toBe(285_000 * 3 /* Đạt, Lan, Hùng */);
     expect(s.ledger().debt(`${billId}:${dat.id}`)?.status).toBe('PENDING');
 
     // Đạt và Lan được báo; Minh (người trả) và khách Hùng thì không.
     const inbox = await dat.until((x) => x.inboxOf(dat.id).some((m) => m.billId === billId), 'thông báo hoá đơn');
     const note = inbox.inboxOf(dat.id).find((m) => m.billId === billId)!;
-    expect(note.message).toBe('Minh thêm hoá đơn “Lẩu gà lá é”: phần của bạn 308.000đ, trả cho Minh.');
+    expect(note.message).toBe('Minh thêm hoá đơn “Lẩu gà lá é”: phần của bạn 285.000đ, trả cho Minh.');
     expect(note.debtKey).toBe(`${billId}:${dat.id}`);
     expect(minh.snap!.inboxOf(minh.id).some((m) => m.billId === billId)).toBe(false);
   });
 
-  it('đủ bốn cách chia lưu và đọc lại đúng', async () => {
+  it('chia lẻ đồng lưu và đọc lại đúng; tài liệu chỉ có các trường chia đều', async () => {
     const { dat, minh, lan, hung, groupId } = await dalat();
-    const members = [dat.id, minh.id, lan.id, hung];
-    const itemized = new BillSpec({
-      payerId: dat.id,
-      mode: 'ITEMIZED',
-      subtotal: 0,
-      items: [
-        new BillItem('Cà phê muối', 45000, [dat.id]),
-        new BillItem('Cà phê muối', 45000, [lan.id]),
-        new BillItem('Bạc xỉu', 40000, [minh.id]),
-        new BillItem('Trà atiso', 35000, [hung]),
-        new BillItem('Bánh tráng nướng', 60000, members),
-        new BillItem('Món giá 0', 0, []),
-      ],
-      vatPercent: 0,
-      servicePercent: 0,
-      rounding: 1000,
-    });
-    const percent = new BillSpec({
-      payerId: dat.id,
-      mode: 'PERCENT',
-      subtotal: 1_600_000,
-      vatPercent: 0,
-      servicePercent: 0,
-      rounding: 1,
-      shares: { [dat.id]: 3000, [minh.id]: 3000, [lan.id]: 2000, [hung]: 2000 },
-    });
-    const custom = new BillSpec({
-      payerId: minh.id,
-      mode: 'CUSTOM',
-      subtotal: 0,
-      vatPercent: 0,
-      servicePercent: 0,
-      rounding: 1,
-      shares: { [dat.id]: 35_000, [minh.id]: 42_000, [lan.id]: 29_000 },
-    });
-    const b1 = await dat.ledger.saveBill({ id: null, groupId, title: 'Cà phê', spec: itemized, category: 'AN_UONG', date: 0 }, dat.id);
-    const b2 = await dat.ledger.saveBill({ id: null, groupId, title: 'Homestay', spec: percent, category: 'LUU_TRU', date: 0 }, dat.id);
-    const b3 = await minh.ledger.saveBill({ id: null, groupId, title: 'Trà sữa', spec: custom, category: 'AN_UONG', date: 0 }, minh.id);
-
-    const s = await lan.until((x) => [b1, b2, b3].every((id) => x.ledger().bill(id) != null), '3 hoá đơn');
-    expect(s.ledger().splitOf(b1)!.total).toBe(225_000);
-    expect(s.ledger().splitOf(b1)!.lineOf(dat.id)!.amount).toBe(60_000);
-    expect(s.ledger().splitOf(b2)!.lineOf(lan.id)!.amount).toBe(320_000);
-    expect(s.ledger().splitOf(b3)!.lineOf(dat.id)!.amount).toBe(35_000);
-    expect(s.ledger().bill(b2)!.category).toBe('LUU_TRU');
-    expect(s.billRecord(b1)!.items).toHaveLength(5); // món giá 0 bị bỏ
+    const id = await dat.ledger.saveBill(
+      { id: null, groupId, title: 'Cà phê', spec: equal(dat.id, 100_000, [dat.id, minh.id, lan.id]), category: 'AN_UONG', date: 0 },
+      dat.id,
+    );
+    const s = await lan.until((x) => x.ledger().bill(id) != null, 'hoá đơn');
+    const r = s.ledger().splitOf(id)!;
+    expect(r.lineOf(dat.id)!.amount).toBe(33_334);
+    expect(r.lineOf(minh.id)!.amount).toBe(33_333);
+    expect(r.lineOf(lan.id)!.amount).toBe(33_333);
+    expect(r.lineOf(hung)).toBeNull();
+    const raw = (await getDoc(doc(dat.db, 'bills', id))).data()!;
+    expect(Object.keys(raw).sort()).toEqual(
+      ['category', 'createdAt', 'createdBy', 'groupId', 'participants', 'payerId', 'subtotal', 'title', 'updatedAt'],
+    );
   });
 
-  it('kiểm tra đầu vào: món chưa gán, tổng 0, % không đủ 100, người đã rời', async () => {
+  it('kiểm tra đầu vào: tổng 0, chưa chọn ai, người ngoài nhóm', async () => {
     const { dat, minh, lan, hung, groupId } = await dalat();
     const members = [dat.id, minh.id, lan.id, hung];
     const save = (spec: BillSpec) => dat.ledger.saveBill({ id: null, groupId, title: '', spec, category: 'KHAC', date: 0 }, dat.id);
 
-    const unassigned = new BillSpec({
-      payerId: dat.id, mode: 'ITEMIZED', subtotal: 0, vatPercent: 0, servicePercent: 0, rounding: 1,
-      items: [new BillItem('Lẩu', 200_000, [dat.id]), new BillItem('Bia', 90_000, [])],
-    });
-    expect((await errorOf(save(unassigned)))?.message).toBe('Còn món chưa gán: Bia');
     expect((await errorOf(save(equal(dat.id, 0, members))))?.message).toBe('Hoá đơn chưa có số tiền.');
     expect((await errorOf(save(equal(dat.id, 1000, []))))?.message).toBe('Chọn ít nhất một người tham gia');
-    const pct = new BillSpec({
-      payerId: dat.id, mode: 'PERCENT', subtotal: 100_000, vatPercent: 0, servicePercent: 0, rounding: 1,
-      shares: { [dat.id]: 5000, [minh.id]: 2550 },
-    });
-    expect((await errorOf(save(pct)))?.message).toBe('Tổng phần trăm đang là 75,5%, cần đúng 100%');
 
     const outsider = await newUser('Người ngoài');
     expect(

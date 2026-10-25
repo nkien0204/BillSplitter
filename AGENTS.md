@@ -27,7 +27,7 @@ src/app (screens)  →  src/state (AppContext)  →  src/data (repositories)  �
                                     └────────────  src/domain (pure TS)  ←──┘
 ```
 
-- `src/domain` — **pure TypeScript. No `react-native`, `firebase` or `expo` imports.** All business rules: split engine, allocator, ledger, debt simplifier, payment state machine, VietQR codec, phone/invite code.
+- `src/domain` — **pure TypeScript. No `react-native`, `firebase` or `expo` imports.** All business rules: split engine (equal split), ledger, debt simplifier, payment state machine, VietQR codec, phone/invite code.
 - `src/data` — the only place that touches Firebase. `LedgerRepository` is the single door for the UI; `FirebaseLedgerRepository` implements it. Business errors are `LedgerError` with a Vietnamese user-facing message.
 - `src/app` / `src/ui` — screens and components. **No money maths and no permission checks in components.**
 
@@ -36,7 +36,7 @@ src/app (screens)  →  src/state (AppContext)  →  src/data (repositories)  �
 ### 1. Money (the Golden Rule)
 
 - Money is an **integer number of VND** (`number`, always `Number.isSafeInteger`). Never fractions, never `toFixed`.
-- Allocate with `Allocator` (largest remainder). It uses `BigInt` internally because `total × weight` can pass 2^53.
+- There is **one split method: equal**. `SplitEngine.equal(total, n)` gives everyone `floor(total / n)` and hands the `total mod n` leftover đồng, one each, to the first participants in `memberOrder`. No VAT, no service fee, no rounding step.
 - Per-person shares are **recomputed** from the bill by `SplitEngine`; they are **never stored**.
 
 ### 2. Logic placement

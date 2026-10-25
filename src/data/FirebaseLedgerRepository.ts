@@ -456,13 +456,7 @@ export class FirebaseLedgerRepository implements LedgerRepository {
     const invalid = SplitEngine.check(spec, order);
     if (invalid != null) return fail(invalid);
     const result = SplitEngine.split(spec, order);
-    if (!result.isSavable()) {
-      return fail(
-        result.unassignedItems.length === 0
-          ? 'Hoá đơn chưa có số tiền.'
-          : 'Còn món chưa gán: ' + result.unassignedItems.join(', '),
-      );
-    }
+    if (!result.isSavable()) return fail('Hoá đơn chưa có số tiền.');
 
     const now = this.now();
     const old = input.id == null ? null : await this.billNow(input.id);
@@ -485,26 +479,14 @@ export class FirebaseLedgerRepository implements LedgerRepository {
     }
 
     const billRef = old ? this.ref('bills', old.id) : doc(collection(this.db, 'bills'));
-    const mode = spec.mode;
     const title = input.title.trim() === '' ? 'Hoá đơn' : input.title.trim();
     const record = {
       groupId: input.groupId,
       title,
       payerId: spec.payerId,
-      mode,
-      subtotal: mode === 'EQUAL' || mode === 'PERCENT' ? spec.subtotal : 0,
-      participants: mode === 'EQUAL' ? [...spec.participants] : [],
-      shares: mode === 'CUSTOM' || mode === 'PERCENT' ? Object.fromEntries(spec.shares) : {},
-      items:
-        mode === 'ITEMIZED'
-          ? spec.items
-              .filter((it) => it.price > 0)
-              .map((it) => ({ name: it.name.trim(), price: it.price, consumers: [...it.consumers] }))
-          : [],
+      subtotal: spec.subtotal,
+      participants: [...spec.participants],
       category: input.category,
-      vatPercent: spec.vatPercent,
-      servicePercent: spec.servicePercent,
-      rounding: spec.rounding,
       createdBy: old ? old.createdBy : actorId,
       createdAt: input.date > 0 ? input.date : old ? old.createdAt : now,
       updatedAt: now,

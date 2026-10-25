@@ -7,7 +7,7 @@
  *   groups/{groupId}            memberOrder = mọi người từng ở nhóm (thứ tự chia), activeMemberIds = người hiện tại
  *   inviteCodes/{code}          { groupId }
  *   joinProofs/{uid}            { code }: bằng chứng biết mã mời, chỉ để security rules đối chiếu
- *   bills/{billId}              hoá đơn, món nằm trong mảng items
+ *   bills/{billId}              hoá đơn: tổng tiền + người tham gia (chia đều)
  *   debtStatuses/{billId:uid}   trạng thái khoản nợ; thiếu = PENDING
  *   inbox/{id}                  thông báo gửi tới một tài khoản
  */
@@ -47,29 +47,17 @@ export interface GroupRecord {
   activeMemberIds: string[];
 }
 
-export interface BillItemRecord {
-  name: string;
-  price: number;
-  consumers: string[];
-}
-
 export interface BillRecord {
   id: string;
   groupId: string;
   title: string;
   payerId: string;
-  mode: string;
+  /** Tổng hoá đơn (VND). */
   subtotal: number;
-  /** Người tham gia khi chia đều. */
+  /** Những người cùng chia đều. */
   participants: string[];
-  vatPercent: number;
-  servicePercent: number;
-  rounding: number;
   /** Tên hằng của Category. */
   category: string;
-  /** CUSTOM: id → số tiền; PERCENT: id → phần vạn. Rỗng với EQUAL và ITEMIZED. */
-  shares: Record<string, number>;
-  items: BillItemRecord[];
   createdBy: string | null;
   createdAt: number;
   updatedAt: number;

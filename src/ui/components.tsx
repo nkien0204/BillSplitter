@@ -245,38 +245,6 @@ export function Field({
   );
 }
 
-/** Nút chọn một trong vài giá trị (VAT, phí, làm tròn, kiểu chia). */
-export function Segmented<T extends string | number>({
-  options,
-  value,
-  onChange,
-}: {
-  options: readonly { value: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <View style={{ flexDirection: 'row', borderRadius: 10, borderWidth: 1, borderColor: colors.lineStrong, overflow: 'hidden' }}>
-      {options.map((o, i) => (
-        <Pressable
-          key={String(o.value)}
-          onPress={() => onChange(o.value)}
-          style={{
-            flex: 1,
-            paddingVertical: 10,
-            alignItems: 'center',
-            backgroundColor: o.value === value ? colors.brand : colors.surface,
-            borderLeftWidth: i === 0 ? 0 : 1,
-            borderLeftColor: colors.lineStrong,
-          }}
-        >
-          <Text style={{ color: o.value === value ? '#fff' : colors.ink, fontSize: 13, fontWeight: '600' }}>{o.label}</Text>
-        </Pressable>
-      ))}
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.paper },
   pad: { padding: 16, gap: 12 },

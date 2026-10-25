@@ -31,8 +31,8 @@ Status legend: **Done** = implemented in v0.4.0 · **Partial** = implemented wit
 
 | ID | Requirement | Status | Where |
 |----|-------------|--------|-------|
-| FR5 | The system shall allow a user to add an expense with amount, description, category, date, payer, and participants. | **Done.** Categories: Ăn uống, Đi lại, Lưu trú, Mua sắm, Giải trí, Khác. Date picker (no future dates). VAT 0/8/10 % and service fee 0/5/10 % are extra. | `src/app/bill/edit.tsx`, `Category` |
-| FR6 | The system shall allow a user to choose a split method: equal split, custom amounts, or percentage split. | **Done**, plus itemised split (each item shared by the people who had it). Percentages must total exactly 100 %. | `SplitEngine` |
+| FR5 | The system shall allow a user to add an expense with amount, description, category, date, payer, and participants. | **Done.** Categories: Ăn uống, Đi lại, Lưu trú, Mua sắm, Giải trí, Khác. Date picker (no future dates). No VAT or service fee: the amount entered is the total. | `src/app/bill/edit.tsx`, `Category` |
+| FR6 | The system shall allow a user to choose a split method: equal split, custom amounts, or percentage split. | **Changed: equal split only.** Custom, percentage and itemised splits, VAT, service fee and rounding were removed to keep the logic small and easy to explain. Shares differ by at most 1đ; the leftover đồng go to the first members in group order. | `SplitEngine` |
 | FR7 | The system shall allow a user to edit or delete an expense they created. | **Done.** Creator or payer only; bills with a confirmed payment cannot be deleted. | `FirebaseLedgerRepository.saveBill/deleteBill`, `firestore.rules` |
 | FR8 | The system shall allow a user to view a history of all expenses in a group, filterable by date, member, or category. | **Done.** Filters: category, member (paid or has a share), period (7 days, 30 days, this month). | `src/app/group/[id].tsx` |
 
